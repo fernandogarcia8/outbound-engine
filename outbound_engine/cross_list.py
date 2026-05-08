@@ -42,6 +42,12 @@ from config import (
     COL_ACTION,
     COL_CONTACT_STATUS,
     COL_NOTES,
+    COL_REPLIED,
+    COL_EMAIL_1, COL_SMS_1,
+    COL_EMAIL_2, COL_SMS_2,
+    COL_EMAIL_3, COL_SMS_3,
+    COL_KUSTOMER_ID,
+    COL_KUSTOMER_LINK,
     CROSS_LIST_STATUS,
     GMB_LISTING_BASE_URL,
     COL_GMB_BOAT_ID,
@@ -49,6 +55,19 @@ from config import (
     COL_GMB_LISTING_URL,
     COL_BS_ADMIN_URL,
 )
+
+# Outreach tracking columns added to both Live sheets during prep
+_LIVE_TRACKING_COLUMNS = [
+    COL_ACTION,
+    COL_CONTACT_STATUS,
+    COL_NOTES,
+    COL_REPLIED,
+    COL_EMAIL_1, COL_SMS_1,
+    COL_EMAIL_2, COL_SMS_2,
+    COL_EMAIL_3, COL_SMS_3,
+    COL_KUSTOMER_ID,
+    COL_KUSTOMER_LINK,
+]
 from kustomer_client import KustomerClient
 from sheets_connector import SheetsConnector
 from logger import setup_file_logger
@@ -119,6 +138,11 @@ def detect_cross_list(
     gmb_connector = SheetsConnector(spreadsheet_id, gmb_sheet_name)
     gmb_rows      = gmb_connector.get_all_rows()
     report(f"  {len(gmb_rows)} rows found in GMB Live")
+
+    if not dry_run:
+        report("\nEnsuring outreach columns exist on both Live sheets...")
+        bs_connector.ensure_columns(_LIVE_TRACKING_COLUMNS + [COL_GMB_LISTING_URL])
+        gmb_connector.ensure_columns(_LIVE_TRACKING_COLUMNS + [COL_BS_ADMIN_URL])
 
     # ── Read BS - Churn and BS - Not Live for Layer 4+5 ───────────────────────
     def _read_funnel_sheet(name: str) -> list[dict]:

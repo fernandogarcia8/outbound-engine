@@ -9,7 +9,7 @@ Actionable states (kept):
     approved, corrections_needed, pending_review, survey_received
 
 Churn states (moved):
-    outbound_denied, deactivated, deleted, incomplete,
+    blocked, boatbound_denied, deactivated, deleted, incomplete,
     insurance_denied, pending_insurance, pending_survey
 
 Usage:
@@ -42,6 +42,7 @@ ACTIONABLE_STATES = {
 }
 
 CHURN_STATES = {
+    "blocked",
     "boatbound_denied",
     "deactivated",
     "deleted",
