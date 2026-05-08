@@ -69,21 +69,28 @@ _LIVE_TRACKING_COLUMNS = [
     COL_KUSTOMER_LINK,
 ]
 
-_LIVE_DROPDOWN_CONFIG = {
+_SHARED_DROPDOWN_CONFIG = {
     COL_ACTION: [
         ("Cross-List",    (0.565, 0.792, 0.976)),  # light blue
         ("Skip",          (0.800, 0.800, 0.800)),  # gray
         ("Manual Check",  (1.000, 0.800, 0.502)),  # peach
     ],
     COL_CONTACT_STATUS: [
-        ("Pending Outreach",    (1.000, 0.945, 0.463)),  # yellow
-        ("Contacted",           (0.851, 0.851, 0.851)),  # silver
-        ("Interested",          (0.784, 0.902, 0.788)),  # light green
-        ("Cross-List WIP",      (0.565, 0.792, 0.976)),  # light blue
-        ("Not Interested",      (1.000, 0.700, 0.700)),  # light red
-        ("Win",                 (0.400, 0.733, 0.416)),  # dark green
-        ("Dual Presence",       (0.800, 0.710, 0.910)),  # lavender
+        ("Pending Outreach",       (1.000, 0.945, 0.463)),  # yellow
+        ("Contacted",              (0.851, 0.851, 0.851)),  # silver
+        ("Interested",             (0.784, 0.902, 0.788)),  # light green
+        ("Cross-List WIP",         (0.565, 0.792, 0.976)),  # light blue
+        ("Not Interested",         (1.000, 0.700, 0.700)),  # light red
+        ("Win",                    (0.400, 0.733, 0.416)),  # dark green
+        ("Dual Presence",          (0.800, 0.710, 0.910)),  # lavender
         ("Possible Dual Presence", (1.000, 0.850, 0.650)),  # light orange
+    ],
+}
+
+_GMB_LIVE_DROPDOWN_CONFIG = {
+    **_SHARED_DROPDOWN_CONFIG,
+    COL_CONTACT_STATUS: _SHARED_DROPDOWN_CONFIG[COL_CONTACT_STATUS] + [
+        ("Already on BS Funnel",   (1.000, 0.737, 0.631)),  # light salmon
     ],
 }
 from kustomer_client import KustomerClient
@@ -161,8 +168,8 @@ def detect_cross_list(
         report("\nEnsuring outreach columns and dropdowns on both Live sheets...")
         bs_connector.ensure_columns(_LIVE_TRACKING_COLUMNS + [COL_GMB_LISTING_URL])
         gmb_connector.ensure_columns(_LIVE_TRACKING_COLUMNS + [COL_BS_ADMIN_URL])
-        bs_connector.apply_column_dropdowns(_LIVE_DROPDOWN_CONFIG)
-        gmb_connector.apply_column_dropdowns(_LIVE_DROPDOWN_CONFIG)
+        bs_connector.apply_column_dropdowns(_SHARED_DROPDOWN_CONFIG)
+        gmb_connector.apply_column_dropdowns(_GMB_LIVE_DROPDOWN_CONFIG)
 
     # ── Read BS - Churn and BS - Not Live for Layer 4+5 ───────────────────────
     def _read_funnel_sheet(name: str) -> list[dict]:
