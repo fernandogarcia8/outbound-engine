@@ -372,8 +372,30 @@ with tab_outreach:
         dry_btn  = btn_col1.button("Dry Run", key=f"{key}_dry")
         live_btn = btn_col2.button(f"Send Phase {num}", key=f"{key}_live", type="primary")
 
-        if dry_btn or live_btn:
-            dry    = dry_btn
+        # ── Confirmation gate for live sends ──────────────────────────────────
+        if live_btn:
+            st.session_state[f"{key}_confirm"] = True
+
+        if st.session_state.get(f"{key}_confirm"):
+            st.warning(
+                f"You are about to send **{phase['label']}** to real contacts in "
+                f"**{market_name}**{'  (test contacts only)' if test_only else ''}. "
+                f"Messages cannot be unsent."
+            )
+            conf_col1, conf_col2, _ = st.columns([1, 1, 4])
+            confirmed = conf_col1.button("Confirm — Send", key=f"{key}_confirmed", type="primary")
+            cancelled = conf_col2.button("Cancel", key=f"{key}_cancel")
+            if cancelled:
+                st.session_state[f"{key}_confirm"] = False
+                st.rerun()
+
+        else:
+            confirmed = False
+
+        if dry_btn or confirmed:
+            dry = dry_btn
+            if confirmed:
+                st.session_state[f"{key}_confirm"] = False
             log_ph = st.empty()
             cb     = make_log_runner(log_ph)
 
