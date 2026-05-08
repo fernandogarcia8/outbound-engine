@@ -1,0 +1,21 @@
+# Secrets — never commit these
+outbound_engine/.env
+outbound_engine/credentials.json
+.streamlit/secrets.toml
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Virtual env
+outbound_engine/venv/
+venv/
+
+# Runtime state (resets on each deploy — acceptable)
+outbound_engine/round_robin_state.json
+outbound_engine/logs/
+
+# Mac
+.DS_Store
