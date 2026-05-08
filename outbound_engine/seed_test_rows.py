@@ -1,10 +1,10 @@
 """
 Seeds Tyler and Fernando as test rows into all sheet tabs so outreach test
 mode can be triggered without manual row entry. Idempotent — skips any tab
-where the contact already has a test row.
+where the contact already has a test row. Skips tabs that don't exist yet.
 """
 
-import gspread.exceptions
+from gspread.exceptions import WorksheetNotFound
 
 from config import (
     TEAM_MEMBERS,
@@ -26,6 +26,28 @@ def _already_seeded(rows: list[dict], email_col: str, email: str) -> bool:
                 and str(row.get(COL_NOTES, "")).strip().lower() == "test"):
             return True
     return False
+
+
+def _seed_tab(sheet_id, tab_name, rows_fn, dry_run, report):
+    """
+    Opens tab_name, calls rows_fn(conn, existing) to get the list of row dicts
+    to append, writes them, and returns the count added. Skips missing tabs.
+    """
+    try:
+        conn = SheetsConnector(sheet_id, tab_name)
+    except WorksheetNotFound:
+        report(f"  Tab '{tab_name}' not found — skipped")
+        return 0
+
+    existing = conn.get_all_rows()
+    rows     = rows_fn(existing)
+    added    = 0
+    for row, label in rows:
+        if not dry_run:
+            conn.append_row(row)
+        report(f"  {'Would add' if dry_run else 'Added'} {label}")
+        added += 1
+    return added
 
 
 def seed_test_rows(
@@ -54,77 +76,65 @@ def seed_test_rows(
 
     # ── BS - Live ──────────────────────────────────────────────────────────────
     report(f"{mode}BS - Live...")
-    conn     = SheetsConnector(sheet_id, bs_live)
-    existing = conn.get_all_rows()
-    added    = 0
-    for m in TEAM_MEMBERS:
-        if _already_seeded(existing, COL_OWNER_EMAIL, m["email"]):
-            report(f"  {m['first_name']} already present — skipped")
-            continue
-        row = {
-            COL_FIRST_NAME:     m["first_name"],
-            COL_LAST_NAME:      m["last_name"],
-            COL_OWNER_EMAIL:    m["email"],
-            COL_OWNER_PHONE:    m["phone"],
-            COL_ACTION:         "Cross-List",
-            COL_CONTACT_STATUS: "Pending Outreach",
-            COL_NOTES:          "test",
-        }
-        if not dry_run:
-            conn.append_row(row)
-        report(f"  {'Would add' if dry_run else 'Added'} {m['first_name']} {m['last_name']}")
-        added += 1
-    results["bs_live"] = added
+    def _bs_live_rows(existing):
+        rows = []
+        for m in TEAM_MEMBERS:
+            if _already_seeded(existing, COL_OWNER_EMAIL, m["email"]):
+                report(f"  {m['first_name']} already present — skipped")
+                continue
+            rows.append(({
+                COL_FIRST_NAME:     m["first_name"],
+                COL_LAST_NAME:      m["last_name"],
+                COL_OWNER_EMAIL:    m["email"],
+                COL_OWNER_PHONE:    m["phone"],
+                COL_ACTION:         "Cross-List",
+                COL_CONTACT_STATUS: "Pending Outreach",
+                COL_NOTES:          "test",
+            }, f"{m['first_name']} {m['last_name']}"))
+        return rows
+    results["bs_live"] = _seed_tab(sheet_id, bs_live, _bs_live_rows, dry_run, report)
 
     # ── GMB - Live ─────────────────────────────────────────────────────────────
     report(f"{mode}GMB - Live...")
-    conn     = SheetsConnector(sheet_id, gmb_live)
-    existing = conn.get_all_rows()
-    added    = 0
-    for m in TEAM_MEMBERS:
-        if _already_seeded(existing, COL_OWNER_EMAIL, m["email"]):
-            report(f"  {m['first_name']} already present — skipped")
-            continue
-        row = {
-            COL_FIRST_NAME:     m["first_name"],
-            COL_LAST_NAME:      m["last_name"],
-            COL_OWNER_EMAIL:    m["email"],
-            COL_OWNER_PHONE:    m["phone"],
-            COL_ACTION:         "Cross-List",
-            COL_CONTACT_STATUS: "Pending Outreach",
-            COL_NOTES:          "test",
-        }
-        if not dry_run:
-            conn.append_row(row)
-        report(f"  {'Would add' if dry_run else 'Added'} {m['first_name']} {m['last_name']}")
-        added += 1
-    results["gmb_live"] = added
+    def _gmb_live_rows(existing):
+        rows = []
+        for m in TEAM_MEMBERS:
+            if _already_seeded(existing, COL_OWNER_EMAIL, m["email"]):
+                report(f"  {m['first_name']} already present — skipped")
+                continue
+            rows.append(({
+                COL_FIRST_NAME:     m["first_name"],
+                COL_LAST_NAME:      m["last_name"],
+                COL_OWNER_EMAIL:    m["email"],
+                COL_OWNER_PHONE:    m["phone"],
+                COL_ACTION:         "Cross-List",
+                COL_CONTACT_STATUS: "Pending Outreach",
+                COL_NOTES:          "test",
+            }, f"{m['first_name']} {m['last_name']}"))
+        return rows
+    results["gmb_live"] = _seed_tab(sheet_id, gmb_live, _gmb_live_rows, dry_run, report)
 
     # ── BS - Not Live ──────────────────────────────────────────────────────────
     # Tyler → Reactivate, Fernando → Get Live (tests both message variants)
     report(f"{mode}BS - Not Live...")
-    conn     = SheetsConnector(sheet_id, bs_not_live)
-    existing = conn.get_all_rows()
-    added    = 0
-    actions  = ["Reactivate", "Get Live"]
-    for m, action in zip(TEAM_MEMBERS, actions):
-        if _already_seeded(existing, COL_OWNER_EMAIL, m["email"]):
-            report(f"  {m['first_name']} already present — skipped")
-            continue
-        row = {
-            COL_FIRST_NAME:     m["first_name"],
-            COL_LAST_NAME:      m["last_name"],
-            COL_OWNER_EMAIL:    m["email"],
-            COL_OWNER_PHONE:    m["phone"],
-            COL_ACTION:         action,
-            COL_CONTACT_STATUS: "Pending Outreach",
-            COL_NOTES:          "test",
-        }
-        if not dry_run:
-            conn.append_row(row)
-        report(f"  {'Would add' if dry_run else 'Added'} {m['first_name']} {m['last_name']} ({action})")
-        added += 1
-    results["bs_not_live"] = added
+    def _bs_not_live_rows(existing):
+        rows    = []
+        actions = ["Reactivate", "Get Live"]
+        for m, action in zip(TEAM_MEMBERS, actions):
+            if _already_seeded(existing, COL_OWNER_EMAIL, m["email"]):
+                report(f"  {m['first_name']} already present — skipped")
+                continue
+            rows.append(({
+                COL_FIRST_NAME:     m["first_name"],
+                COL_LAST_NAME:      m["last_name"],
+                COL_OWNER_EMAIL:    m["email"],
+                COL_OWNER_PHONE:    m["phone"],
+                COL_ACTION:         action,
+                COL_CONTACT_STATUS: "Pending Outreach",
+                COL_NOTES:          "test",
+            }, f"{m['first_name']} {m['last_name']} ({action})"))
+        return rows
+    results["bs_not_live"] = _seed_tab(sheet_id, bs_not_live, _bs_not_live_rows, dry_run, report)
 
     # ── Prospects ──────────────────────────────────────────────────────────────
     report(f"{mode}Prospects...")
@@ -133,26 +143,22 @@ def seed_test_rows(
     name_col  = overrides.get("first_name", COL_FIRST_NAME)
     phone_col = overrides.get("phone",      COL_OWNER_PHONE)
 
-    conn     = SheetsConnector(sheet_id, prospects)
-    existing = conn.get_all_rows()
-    added    = 0
-    for m in TEAM_MEMBERS:
-        if _already_seeded(existing, email_col, m["email"]):
-            report(f"  {m['first_name']} already present — skipped")
-            continue
-        row = {
-            name_col:           f"{m['first_name']} {m['last_name']}",
-            email_col:          m["email"],
-            phone_col:          m["phone"],
-            "Type":             "charter",
-            COL_ACTION:         "Prospect",
-            COL_NOTES:          "test",
-        }
-        if not dry_run:
-            conn.append_row(row)
-        report(f"  {'Would add' if dry_run else 'Added'} {m['first_name']} {m['last_name']}")
-        added += 1
-    results["prospects"] = added
+    def _prospect_rows(existing):
+        rows = []
+        for m in TEAM_MEMBERS:
+            if _already_seeded(existing, email_col, m["email"]):
+                report(f"  {m['first_name']} already present — skipped")
+                continue
+            rows.append(({
+                name_col:           f"{m['first_name']} {m['last_name']}",
+                email_col:          m["email"],
+                phone_col:          m["phone"],
+                "Type":             "charter",
+                COL_ACTION:         "Prospect",
+                COL_NOTES:          "test",
+            }, f"{m['first_name']} {m['last_name']}"))
+        return rows
+    results["prospects"] = _seed_tab(sheet_id, prospects, _prospect_rows, dry_run, report)
 
     total = sum(results.values())
     report(f"\n{mode}Done — {total} row(s) added across all tabs")
