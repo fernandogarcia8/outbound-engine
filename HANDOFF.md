@@ -3,15 +3,17 @@
 ## Project location
 ```
 /Users/fernandogarcia/Desktop/Claude/Outbound Engine/
-├── controller.py           ← CLI entry point (use this instead of running scripts directly)
-├── app.py                  ← Streamlit web app
+├── controller.py           ← CLI entry point (alternative to web app)
+├── app.py                  ← Streamlit web app (primary interface)
 ├── markets.py              ← Dynamic market discovery (reads from Google Drive)
+├── requirements.txt        ← Python dependencies (used by Streamlit Cloud)
 ├── .streamlit/config.toml  ← App theme (light blue)
 └── outbound_engine/
     ├── engine.py
     ├── cross_list.py
     ├── split_not_live.py
     ├── classify_not_live.py
+    ├── seed_test_rows.py   ← Seeds Tyler + Fernando as test rows in all tabs
     ├── market_discovery.py ← Drive folder scanner (handles shortcuts)
     ├── templates.py
     ├── segmentation.py
@@ -20,16 +22,28 @@
     ├── round_robin.py
     ├── logger.py
     ├── config.py
-    ├── .env                ← API keys + MARKETS_DRIVE_FOLDER_ID
-    └── credentials.json    ← Google service account
+    ├── .env                ← API keys + MARKETS_DRIVE_FOLDER_ID (local only)
+    └── credentials.json    ← Google service account (local only)
 ```
 
 ## What this is
-A Python outreach engine for Boatsetter's supply team. Reads Google Sheets, sends email + SMS via Kustomer API, writes results back. Now has a Streamlit web app and a CLI controller. Markets auto-discovered from a Google Drive folder.
+A Python outreach engine for Boatsetter's supply team. Reads Google Sheets, sends email + SMS via Kustomer API, writes results back. Has a Streamlit web app (primary) and a CLI controller. Markets auto-discovered from a Google Drive folder.
 
 ---
 
-## How to run
+## Web app
+
+**Live at:** https://supply-outbound-engine.streamlit.app
+
+GitHub repo: https://github.com/fernandogarcia8/outbound-engine (private)
+
+Secrets (API keys + GCP service account JSON) are stored in the Streamlit Cloud secrets manager — never committed to git. To update a secret, go to the app settings on share.streamlit.io.
+
+Local dev still works unchanged — `streamlit run app.py` reads from `outbound_engine/.env`.
+
+---
+
+## How to run locally
 
 ### Start the web app
 ```bash
@@ -69,8 +83,22 @@ python controller.py scrape   --market savannah   # prints prospecting skill ins
 
 Prep runs three steps in sequence:
 1. `split_not_live` — splits BS - Not Live into actionable vs BS - Churn by BOAT_LISTING_STATE
-2. `classify_not_live` — assigns Tier + Action to take + Contact Status to actionable rows
-3. `detect_cross_list` — 5-layer + name-match detection, tags BS - Live and GMB - Live
+2. `classify_not_live` — assigns Tier + Action + Contact Status + outreach columns to actionable rows
+3. `detect_cross_list` — 6-layer detection, tags BS - Live and GMB - Live, adds outreach columns + colored dropdowns to both tabs
+
+---
+
+## Market naming convention
+
+The Google Sheet name controls what appears in message copy. Whatever comes before `- Outbound` is used as the market name in templates.
+
+| Sheet name | Copy says |
+|---|---|
+| `Houston and nearby - Outbound` | Houston and nearby |
+| `Tampa Bay - Outbound` | Tampa Bay |
+| `Savannah - Outbound` | Savannah |
+
+**Always name sheets:** `<copy-ready location> - Outbound`
 
 ---
 
@@ -79,18 +107,14 @@ Prep runs three steps in sequence:
 Markets are discovered automatically from Google Drive at app startup (cached 5 min).
 
 **To add a new market:**
-1. Create a Google Sheet named after the market (e.g. "Panama City")
-2. Share it with `outbound-engine@n8n-sheets-456321.iam.gserviceaccount.com` (Editor)
-3. Place it (or a shortcut) in the "Outbound Engine" Drive folder:
+1. Create a Google Sheet named `<Location> - Outbound` (e.g. "Tampa Bay - Outbound")
+2. Add tabs: `BS - Live` | `GMB - Live` | `BS - Not Live` | `BS - Churn` | `Prospects`
+3. Share the sheet with `outbound-engine@n8n-sheets-456321.iam.gserviceaccount.com` (Editor)
+4. Place it (or a shortcut) in the "Outbound Engine" Drive folder:
    `https://drive.google.com/drive/u/0/folders/1jje4PAk8chx9pSbkjldhWsAqFQiCA4cf`
-4. It appears in the web app dropdown automatically
-
-Drive folder ID is set in `.env` as `MARKETS_DRIVE_FOLDER_ID=1jje4PAk8chx9pSbkjldhWsAqFQiCA4cf`.
+5. It appears in the web app dropdown automatically (within 5 min)
 
 Note: If you move an existing file into the folder, Drive creates a shortcut. The discovery code handles shortcuts correctly (resolves targetId).
-
-**Required tab names inside each market sheet:**
-`BS - Live` | `GMB - Live` | `BS - Not Live` | `BS - Churn` | `Prospects`
 
 ---
 
@@ -98,15 +122,24 @@ Note: If you move an existing file into the folder, Drive creates a shortcut. Th
 
 All outreach runs support a test mode that filters to rows where `Notes = "test"`.
 
-In test mode, the eligibility and touch-timing checks are **bypassed entirely** — test contacts always receive Touch 1 regardless of prior send history. This means test contacts can be reused without resetting the sheet.
+In test mode, eligibility and touch-timing checks are **bypassed entirely** — test contacts always receive Touch 1 regardless of prior send history.
+
+**Seeding test rows (web app):**
+1. Toggle "Test contacts only" on in the sidebar
+2. Go to the Outreach tab — a "Test Setup" section appears
+3. Click **Seed test rows** — adds Tyler and Fernando to all sheet tabs automatically
+   - BS - Not Live: Tyler → Reactivate, Fernando → Get Live (tests both variants)
+   - All other tabs: both → Cross-List or Prospect
+4. Idempotent — skips tabs where they already exist
+
+**Kustomer ID in test rows:** Left blank when seeded. The engine looks up and fills it at send time via `get_or_create_customer()`.
 
 ```bash
 # CLI
 python controller.py outreach --market savannah --phase 1 --test
-
-# Web app
-# Toggle "Test contacts only" in the sidebar before clicking Send
 ```
+
+**Confirmation gate (web app):** Live sends require a second confirmation click after "Send Phase X". Dry runs skip this.
 
 ---
 
@@ -128,9 +161,10 @@ python controller.py outreach --market savannah --phase 1 --test
 
 ### Team members (config.py) — Tyler + Fernando only (Casey is prospect alias only)
 ```python
-{"name": "Tyler",    "kustomer_id": "68233767cc5a45b13d77bef8"},
-{"name": "Fernando", "kustomer_id": "63e13a6d7e5d1d84e78cacaa"},
+{"name": "Tyler",    "kustomer_id": "68233767cc5a45b13d77bef8", "email": "tbrick@boatsetter.com",   "phone": "+16128503633"},
+{"name": "Fernando", "kustomer_id": "63e13a6d7e5d1d84e78cacaa", "email": "fernando@boatsetter.com", "phone": "+528116892533"},
 ```
+Email and phone are used only for seeding test rows — not for outreach assignment.
 
 ---
 
@@ -147,7 +181,13 @@ Six-layer matching when running prep on BS - Live / GMB - Live:
 | L5 | Kustomer lookup | `Possible Dual Presence` or `Cross-List` |
 | L6 | Name match vs BS - Churn / BS - Not Live | `Already on BS Funnel` + "(name match, verify before outreach)" note |
 
-Layer 6 (name match) catches same-person different-email cases. Notes include matched contact info for manual verification.
+Prep also adds outreach tracking columns and colored dropdowns to both Live tabs:
+
+**Action to take:** Cross-List (blue) · Skip (gray) · Manual Check (peach)
+
+**Contact Status (BS - Live):** Pending Outreach · Contacted · Interested · Cross-List WIP · Not Interested · Win · Dual Presence · Possible Dual Presence
+
+**Contact Status (GMB - Live):** same + Already on BS Funnel
 
 ---
 
@@ -185,7 +225,7 @@ Business name from `Charter Name` column is injected into prospect templates.
 | Tier 3 | `pending_review`, `survey_received` | CREATED_AT < 2023-01-01 | Get Live |
 | Rehab | `corrections_needed` | — | Check (no outreach, manual review) |
 
-BS - Churn states (moved by split_not_live.py): `boatbound_denied`, `deactivated`, `deleted`, `incomplete`, `insurance_denied`, `pending_insurance`, `pending_survey`
+BS - Churn states (moved by split_not_live.py): `blocked`, `boatbound_denied`, `deactivated`, `deleted`, `incomplete`, `insurance_denied`, `pending_insurance`, `pending_survey`
 
 ---
 
@@ -196,28 +236,19 @@ Sheet ID: `1TXflgydfFvtd1GuMAfyO5UDopQ5lCD22AMpRusK6vlU`
 
 All test runs complete. **Live outreach has not been fired yet.**
 
-| Sheet | Status |
+| Tab | Status |
 |---|---|
 | BS - Live | 11 Cross-List targets ready. Test run ✓ |
-| GMB - Live | 0 targets (all are Dual Presence / Possible Dual Presence after name-match detection caught Keith Walston). Test run ✓ |
+| GMB - Live | 0 targets (all Dual Presence / Possible Dual Presence after name-match detection). Test run ✓ |
 | BS - Not Live | 24 Reactivate + 11 Get Live ready. Test run ✓ |
 | Prospects | 34 operators (28 GA / 6 SC). Dry run ✓ |
 | BS - Churn | 202 rows. No outreach process yet. |
 
+### Houston — "Houston and nearby - Outbound" sheet
+Prep run complete. Outreach not yet fired.
+
 ### Orlando — "Orlando Prospecting" sheet
-Newly added to the Drive folder. Sheet is empty/fresh — no prep run yet.
-
----
-
-## Web app deployment
-
-**Live at:** https://supply-outbound-engine.streamlit.app
-
-GitHub repo: https://github.com/fernandogarcia8/boatsetter-outbound-engine (private)
-
-Secrets (API keys + GCP service account JSON) are stored in the Streamlit Cloud secrets manager — never committed to git. To update a secret, go to the app settings on share.streamlit.io.
-
-Local dev still works unchanged — `streamlit run app.py` reads from `outbound_engine/.env`.
+In Drive folder. Sheet is empty/fresh — no prep run yet.
 
 ---
 
@@ -228,27 +259,28 @@ Local dev still works unchanged — `streamlit run app.py` reads from `outbound_
    - Phase 2: BS - Not Live (24 reactivate + 11 get_live)
    - Phase 3: Prospects (34 operators)
 
-2. **GitHub + Streamlit Cloud deployment** — set up permanent URL for Tyler
+2. **Funnel detection for Prospects tab** — cross-reference scraped operators against BS - Live, GMB - Live, BS - Not Live, BS - Churn before outreach. Discussed, not built yet.
 
-3. **Funnel detection for Prospects tab** — cross-reference 34 scraped operators against BS - Live, GMB - Live, BS - Not Live, BS - Churn before outreach. Discussed, not built yet.
+3. **BS - Churn outreach** — no process yet. Opportunity in `pending_insurance`, `deactivated`, `deleted`.
 
-4. **BS - Churn outreach** — no process yet. Opportunity in `pending_insurance`, `deactivated`, `deleted`.
-
-5. **Orlando market** — sheet is in Drive folder, needs raw data + prep before outreach.
+4. **Orlando market** — sheet is in Drive folder, needs raw data + prep before outreach.
 
 ---
 
 ## What's working
 
 - Google Sheets connection ✅
-- Market auto-discovery from Drive folder ✅ (handles shortcuts)
+- Market auto-discovery from Drive folder ✅ (handles shortcuts, strips display name suffixes)
 - `controller.py` CLI (prep + outreach phases 1/2/3 + scrape instructions) ✅
-- `app.py` Streamlit web app (sidebar market selector, tabs, test toggle, live log) ✅
+- `app.py` Streamlit web app ✅ — live at https://supply-outbound-engine.streamlit.app
 - `cross_list.py` 6-layer detection including name matching ✅
-- `split_not_live.py` ✅
+- Cross-list prep adds outreach columns + colored dropdowns to BS-Live and GMB-Live ✅
+- `split_not_live.py` ✅ (handles `blocked` state → BS-Churn)
 - `classify_not_live.py` ✅
 - `engine.py` all segments ✅
 - Test mode (Notes="test", bypasses eligibility/timing) ✅
+- Seed test rows button (Outreach tab, test mode only) ✅
+- Confirmation gate before live sends ✅
 - Prospect templates — fishing / rental / charter variants, no em dashes ✅
 - Deduplication by owner, boat noun (boat/boats/fleet) ✅
 - Round-robin (Tyler + Fernando), persisted in `round_robin_state.json` ✅
