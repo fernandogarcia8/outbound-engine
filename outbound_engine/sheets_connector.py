@@ -70,6 +70,12 @@ class SheetsConnector:
             self._sheet.update_cell(1, next_col, col)
             next_col += 1
 
+    def append_row(self, values: dict) -> None:
+        """Appends a row using a column→value dict. Columns not in the sheet are ignored."""
+        headers = self._sheet.row_values(1)
+        row = [str(values.get(h, "")) for h in headers]
+        self._sheet.append_row(row, value_input_option="USER_ENTERED")
+
     def update_row(self, match_column: str, match_value: str, updates: dict) -> None:
         """
         Finds the row where match_column == match_value and writes the updates dict

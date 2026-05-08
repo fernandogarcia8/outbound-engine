@@ -52,6 +52,7 @@ from split_not_live import split_not_live
 from classify_not_live import classify_not_live
 from cross_list import detect_cross_list
 from engine import run_campaign
+from seed_test_rows import seed_test_rows
 
 
 # ── Page config ────────────────────────────────────────────────────────────────
@@ -307,6 +308,32 @@ with tab_outreach:
     st.markdown("### Outreach")
     st.markdown("Run each phase in order. Review the sheet between phases.")
     st.markdown("")
+
+    # ── Seed test rows (only shown when test mode is on) ───────────────────────
+    if test_only:
+        st.markdown('<p class="section-label">Test Setup</p>', unsafe_allow_html=True)
+        st.caption("Adds Tyler and Fernando as test rows to all sheet tabs. Skips any tab where they already exist.")
+        seed_col1, seed_col2, _ = st.columns([1, 1, 4])
+        seed_dry  = seed_col1.button("Preview", key="seed_dry")
+        seed_live = seed_col2.button("Seed test rows", key="seed_live", type="primary")
+
+        if seed_dry or seed_live:
+            log_ph = st.empty()
+            cb     = make_log_runner(log_ph)
+            with st.status(f"{'[DRY RUN] ' if seed_dry else ''}Seeding test rows for {market_name}...", expanded=True) as status:
+                results = seed_test_rows(
+                    sheet_id=sheet_id,
+                    bs_live=bs_live, gmb_live=gmb_live,
+                    bs_not_live=bs_not_live, prospects=prospects,
+                    dry_run=seed_dry, on_progress=cb,
+                )
+                status.update(label="Done!", state="complete")
+            total = sum(results.values())
+            if seed_dry:
+                st.info(f"Preview complete — {total} row(s) would be added. Click **Seed test rows** to apply.")
+            else:
+                st.success(f"{total} test row(s) added. Run outreach phases below with test mode on.")
+        st.divider()
 
     phases = [
         {

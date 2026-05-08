@@ -10,8 +10,22 @@ load_dotenv()
 
 # ── Team members ──────────────────────────────────────────────────────────────
 TEAM_MEMBERS = [
-    {"name": "Tyler",    "kustomer_id": "68233767cc5a45b13d77bef8"},
-    {"name": "Fernando", "kustomer_id": "63e13a6d7e5d1d84e78cacaa"},
+    {
+        "name":        "Tyler",
+        "kustomer_id": "68233767cc5a45b13d77bef8",
+        "first_name":  "Tyler",
+        "last_name":   "Brick",
+        "email":       "tbrick@boatsetter.com",
+        "phone":       "+16128503633",
+    },
+    {
+        "name":        "Fernando",
+        "kustomer_id": "63e13a6d7e5d1d84e78cacaa",
+        "first_name":  "Fernando",
+        "last_name":   "Garcia",
+        "email":       "fernando@boatsetter.com",
+        "phone":       "+528116892533",
+    },
 ]
 
 # ── Kustomer org settings ─────────────────────────────────────────────────────
