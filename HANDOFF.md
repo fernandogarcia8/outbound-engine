@@ -209,19 +209,15 @@ Newly added to the Drive folder. Sheet is empty/fresh — no prep run yet.
 
 ---
 
-## Web app deployment (next step)
+## Web app deployment
 
-The app currently runs locally (`streamlit run app.py`). For teammates to use it from anywhere:
+**Live at:** https://supply-outbound-engine.streamlit.app
 
-**Streamlit Community Cloud (recommended, free):**
-1. Create a GitHub repo for this project
-2. Connect at share.streamlit.io
-3. Add secrets (API keys + credentials.json) via Streamlit Cloud's secrets manager
-4. Tyler and Fernando get a permanent URL
+GitHub repo: https://github.com/fernandogarcia8/boatsetter-outbound-engine (private)
 
-**Quick option for demos (no GitHub needed):**
-- Same WiFi: share the Network URL shown in terminal (`http://192.168.68.103:8501`)
-- Different network: `ngrok http 8501` → public URL tunneled to local machine
+Secrets (API keys + GCP service account JSON) are stored in the Streamlit Cloud secrets manager — never committed to git. To update a secret, go to the app settings on share.streamlit.io.
+
+Local dev still works unchanged — `streamlit run app.py` reads from `outbound_engine/.env`.
 
 ---
 
