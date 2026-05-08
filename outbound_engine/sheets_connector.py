@@ -315,7 +315,8 @@ class SheetsConnector:
 
         requests = []
 
-        # ── Delete existing conditional format rules for our target columns ────
+        # ── Delete ALL existing conditional format rules on this sheet ─────────
+        # Wipe clean before reapplying so stale rules can never persist.
         try:
             raw = ss.client.request(
                 "GET",
@@ -332,16 +333,7 @@ class SheetsConnector:
                 existing = s.get("conditionalFormats", [])
                 break
 
-        target_indices = set(target_cols.values())
-        to_delete = []
-        for idx, rule in enumerate(existing):
-            for rng in rule.get("ranges", []):
-                if (rng.get("sheetId") == sheet_id
-                        and rng.get("startColumnIndex") in target_indices):
-                    to_delete.append(idx)
-                    break
-
-        for idx in sorted(to_delete, reverse=True):
+        for idx in range(len(existing) - 1, -1, -1):
             requests.append({
                 "deleteConditionalFormatRule": {"sheetId": sheet_id, "index": idx}
             })
