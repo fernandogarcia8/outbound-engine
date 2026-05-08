@@ -82,7 +82,7 @@ _SHARED_DROPDOWN_CONFIG = {
         ("Cross-List WIP",         (0.565, 0.792, 0.976)),  # light blue
         ("Not Interested",         (1.000, 0.700, 0.700)),  # light red
         ("Win",                    (0.400, 0.733, 0.416)),  # dark green
-        ("Dual Presence",          (0.800, 0.710, 0.910)),  # lavender
+        ("Dual Presence",          (0.800, 0.800, 0.800)),  # gray
         ("Possible Dual Presence", (1.000, 0.850, 0.650)),  # light orange
     ],
 }
