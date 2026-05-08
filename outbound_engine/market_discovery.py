@@ -84,12 +84,19 @@ def discover_markets(credentials_path: str = "", folder_id: str = "") -> dict:
         ).execute()
         files = result.get("files", [])
 
+    # Suffixes that are operational labels, not part of the market name
+    _STRIP = re.compile(
+        r"\s*[-–]\s*(outbound|prospecting)$|\s+(outbound|prospecting)$",
+        re.IGNORECASE,
+    )
+
     markets = {}
     for f in files:
-        name = f["name"]
-        key  = re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")
+        name         = f["name"]
+        display_name = _STRIP.sub("", name).strip()
+        key          = re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")
         markets[key] = {
-            "display_name": name,
+            "display_name": display_name,
             "sheet_id":     f["id"],
             "sheets":       DEFAULT_SHEET_TABS.copy(),
         }
