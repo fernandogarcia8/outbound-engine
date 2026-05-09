@@ -366,87 +366,77 @@ with tab_outreach:
         num = phase["num"]
         key = phase["key"]
 
-        st.markdown(
-            f'<div class="phase-card">'
-            f'<p class="phase-label">{phase["label"]}</p>'
-            f'<p class="phase-desc">{phase["desc"]}</p>'
-            f'</div>',
-            unsafe_allow_html=True,
-        )
+        with st.expander(f"{phase['label']}  —  {phase['desc']}"):
+            for ti, tdef in enumerate(touch_defs):
+                tkey        = f"{key}_{tdef['suffix']}"
+                touch_label = tdef["label"]
+                touch_note  = tdef["note"]
 
-        for ti, tdef in enumerate(touch_defs):
-            tkey         = f"{key}_{tdef['suffix']}"
-            touch_label  = tdef["label"]
-            touch_note   = tdef["note"]
-
-            lbl_col, dry_col, live_col, _ = st.columns([2.2, 1, 1.4, 2])
-            lbl_col.markdown(
-                f"**{touch_label}** &nbsp;"
-                f"<span style='color:#94A3B8; font-size:0.8rem'>{touch_note}</span>",
-                unsafe_allow_html=True,
-            )
-            dry_btn  = dry_col.button("Dry Run",            key=f"{tkey}_dry")
-            live_btn = live_col.button(f"Send {touch_label}", key=f"{tkey}_live", type="primary")
-
-            # ── Confirmation gate ──────────────────────────────────────────────
-            if live_btn:
-                st.session_state[f"{tkey}_confirm"] = True
-
-            if st.session_state.get(f"{tkey}_confirm"):
-                st.warning(
-                    f"Sending **{phase['label']} — {touch_label}** to real contacts in "
-                    f"**{market_name}**{'  (test contacts only)' if test_only else ''}. "
-                    f"Messages cannot be unsent."
-                )
-                cc1, cc2, _ = st.columns([1, 1, 4])
-                confirmed = cc1.button("Confirm — Send", key=f"{tkey}_confirmed", type="primary")
-                cancelled = cc2.button("Cancel",         key=f"{tkey}_cancel")
-                if cancelled:
-                    st.session_state[f"{tkey}_confirm"] = False
-                    st.rerun()
-            else:
-                confirmed = False
-
-            if dry_btn or confirmed:
-                dry = dry_btn
-                if confirmed:
-                    st.session_state[f"{tkey}_confirm"] = False
-                log_ph = st.empty()
-                cb     = make_log_runner(log_ph)
-
-                base = dict(
-                    market=market_name, sheet_id=sheet_id,
-                    dry_run=dry, test_only=test_only,
-                    require_approval=False, on_progress=cb,
-                )
-
-                label = f"{'[DRY RUN] ' if dry else ''}{phase['label']} — {touch_label}"
-                with st.status(f"Running {label}...", expanded=True) as status:
-                    if num == 1:
-                        st.write("**1 / 2** — BS - Live → Getmyboat (email + SMS)")
-                        run_campaign(segment="cross_list", sheet_name=bs_live, **base)
-                        st.write("**2 / 2** — GMB - Live → Boatsetter (SMS only)")
-                        run_campaign(segment="cross_list", sheet_name=gmb_live, sms_only=True, **base)
-                    elif num == 2:
-                        st.write("**1 / 2** — Reactivate")
-                        run_campaign(segment="reactivate", sheet_name=bs_not_live, **base)
-                        st.write("**2 / 2** — Get Live")
-                        run_campaign(segment="get_live", sheet_name=bs_not_live, **base)
-                    elif num == 3:
-                        st.write("**1 / 1** — Prospect (Casey alias)")
-                        run_campaign(segment="prospect", sheet_name=prospects, **base)
-                    status.update(label=f"{label} complete!", state="complete")
-
-                if dry:
-                    st.info("Dry run complete — no messages sent. Review the output, then click Send.")
-                else:
-                    st.success(f"**{label}** sent for **{market_name}**.")
-
-            if ti < len(touch_defs) - 1:
-                st.markdown(
-                    "<hr style='margin:0.6rem 0; border:none; border-top:1px solid #E2E8F0'>",
+                lbl_col, dry_col, live_col, _ = st.columns([2.2, 1, 1.4, 2])
+                lbl_col.markdown(
+                    f"**{touch_label}** &nbsp;"
+                    f"<span style='color:#94A3B8; font-size:0.8rem'>{touch_note}</span>",
                     unsafe_allow_html=True,
                 )
+                dry_btn  = dry_col.button("Dry Run",             key=f"{tkey}_dry")
+                live_btn = live_col.button(f"Send {touch_label}", key=f"{tkey}_live", type="primary")
 
-        if num < len(phases):
-            st.divider()
+                # ── Confirmation gate ──────────────────────────────────────────
+                if live_btn:
+                    st.session_state[f"{tkey}_confirm"] = True
+
+                if st.session_state.get(f"{tkey}_confirm"):
+                    st.warning(
+                        f"Sending **{phase['label']} — {touch_label}** to real contacts in "
+                        f"**{market_name}**{'  (test contacts only)' if test_only else ''}. "
+                        f"Messages cannot be unsent."
+                    )
+                    cc1, cc2, _ = st.columns([1, 1, 4])
+                    confirmed = cc1.button("Confirm — Send", key=f"{tkey}_confirmed", type="primary")
+                    cancelled = cc2.button("Cancel",         key=f"{tkey}_cancel")
+                    if cancelled:
+                        st.session_state[f"{tkey}_confirm"] = False
+                        st.rerun()
+                else:
+                    confirmed = False
+
+                if dry_btn or confirmed:
+                    dry = dry_btn
+                    if confirmed:
+                        st.session_state[f"{tkey}_confirm"] = False
+                    log_ph = st.empty()
+                    cb     = make_log_runner(log_ph)
+
+                    base = dict(
+                        market=market_name, sheet_id=sheet_id,
+                        dry_run=dry, test_only=test_only,
+                        require_approval=False, on_progress=cb,
+                    )
+
+                    label = f"{'[DRY RUN] ' if dry else ''}{phase['label']} — {touch_label}"
+                    with st.status(f"Running {label}...", expanded=True) as status:
+                        if num == 1:
+                            st.write("**1 / 2** — BS - Live → Getmyboat (email + SMS)")
+                            run_campaign(segment="cross_list", sheet_name=bs_live, **base)
+                            st.write("**2 / 2** — GMB - Live → Boatsetter (SMS only)")
+                            run_campaign(segment="cross_list", sheet_name=gmb_live, sms_only=True, **base)
+                        elif num == 2:
+                            st.write("**1 / 2** — Reactivate")
+                            run_campaign(segment="reactivate", sheet_name=bs_not_live, **base)
+                            st.write("**2 / 2** — Get Live")
+                            run_campaign(segment="get_live", sheet_name=bs_not_live, **base)
+                        elif num == 3:
+                            st.write("**1 / 1** — Prospect (Casey alias)")
+                            run_campaign(segment="prospect", sheet_name=prospects, **base)
+                        status.update(label=f"{label} complete!", state="complete")
+
+                    if dry:
+                        st.info("Dry run complete — no messages sent. Review the output, then click Send.")
+                    else:
+                        st.success(f"**{label}** sent for **{market_name}**.")
+
+                if ti < len(touch_defs) - 1:
+                    st.markdown(
+                        "<hr style='margin:0.6rem 0; border:none; border-top:1px solid #E2E8F0'>",
+                        unsafe_allow_html=True,
+                    )
