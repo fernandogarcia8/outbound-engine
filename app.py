@@ -338,19 +338,19 @@ with tab_outreach:
     phases = [
         {
             "num":   1,
-            "label": "Phase 1 — Cross-List",
+            "label": "Phase 1 - Cross-List",
             "desc":  "BS - Live → Getmyboat pitch   ·   GMB - Live → Boatsetter pitch",
             "key":   "phase1",
         },
         {
             "num":   2,
-            "label": "Phase 2 — BS - Not Live",
+            "label": "Phase 2 - Reactivate + Get Live",
             "desc":  "Reactivate + Get Live",
             "key":   "phase2",
         },
         {
             "num":   3,
-            "label": "Phase 3 — Prospect",
+            "label": "Phase 3 - Prospect",
             "desc":  "Cold outreach via Casey alias",
             "key":   "phase3",
         },
@@ -366,7 +366,7 @@ with tab_outreach:
         num = phase["num"]
         key = phase["key"]
 
-        with st.expander(f"{phase['label']}  —  {phase['desc']}"):
+        with st.expander(phase["label"]):
             for ti, tdef in enumerate(touch_defs):
                 tkey        = f"{key}_{tdef['suffix']}"
                 touch_label = tdef["label"]
