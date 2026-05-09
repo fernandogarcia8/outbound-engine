@@ -92,12 +92,12 @@ class KustomerClient:
         from config import COL_KUSTOMER_ID, COL_OWNER_EMAIL, COL_OWNER_PHONE, COL_FIRST_NAME, COL_LAST_NAME
 
         # If the sheet already has a Kustomer ID, use it directly
-        existing_id = (row.get(COL_KUSTOMER_ID) or "").strip()
+        existing_id = str(row.get(COL_KUSTOMER_ID) or "").strip()
         if existing_id:
             return existing_id
 
-        email = (row.get(COL_OWNER_EMAIL) or "").strip()
-        phone = (row.get(COL_OWNER_PHONE) or "").strip()
+        email = str(row.get(COL_OWNER_EMAIL) or "").strip()
+        phone = str(row.get(COL_OWNER_PHONE) or "").strip()
 
         customer = None
 
@@ -111,8 +111,8 @@ class KustomerClient:
             return customer["id"]
 
         # Not found anywhere — create a new one
-        first = (row.get(COL_FIRST_NAME) or "").strip()
-        last  = (row.get(COL_LAST_NAME)  or "").strip()
+        first = str(row.get(COL_FIRST_NAME) or "").strip()
+        last  = str(row.get(COL_LAST_NAME)  or "").strip()
         name  = f"{first} {last}".strip() or "Unknown"
 
         customer = self.create_customer(name=name, email=email or None, phone=phone or None)
