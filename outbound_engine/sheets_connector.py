@@ -74,7 +74,7 @@ class SheetsConnector:
         """Appends a row using a column→value dict. Columns not in the sheet are ignored."""
         headers = self._sheet.row_values(1)
         row = [str(values.get(h, "")) for h in headers]
-        self._sheet.append_row(row, value_input_option="USER_ENTERED")
+        self._sheet.append_row(row, value_input_option="RAW")
 
     def update_row(self, match_column: str, match_value: str, updates: dict) -> None:
         """
