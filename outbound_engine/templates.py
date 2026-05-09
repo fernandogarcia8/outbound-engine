@@ -32,9 +32,11 @@ def _boat_noun(count: int) -> str:
 
 def _reactivate_recent(greeting: str, market: str, assignee_name: str = "the team", **_) -> dict:
     sms_body = (
-        f"{greeting} {assignee_name} here from Boatsetter. I saw your boat is currently inactive.\n"
-        f"Demand in {market} is strong right now and I'd love to get it back live to send bookings "
-        f"your way. Want help getting it back live?"
+        f"{greeting}\n\n"
+        f"{assignee_name} here from Boatsetter.\n\n"
+        f"I saw your boat is currently inactive. Demand in {market} is strong right now and I'd love "
+        f"to get it back live to send bookings your way.\n\n"
+        f"Want help getting it back live?"
     )
     email_body = (
         f"{greeting}\n\n"
@@ -54,10 +56,11 @@ def _reactivate_recent(greeting: str, market: str, assignee_name: str = "the tea
 
 def _reactivate_old(greeting: str, market: str, assignee_name: str = "the team", **_) -> dict:
     sms_body = (
-        f"{greeting} {assignee_name} here from Boatsetter. I noticed your boat hasn't been "
-        f"live in a while.\n"
-        f"Demand in {market} is strong right now and we would love to get it back live to send "
-        f"bookings your way.\nDo you still have it?"
+        f"{greeting}\n\n"
+        f"{assignee_name} here from Boatsetter.\n\n"
+        f"I noticed your boat hasn't been live in a while. Demand in {market} is strong right now "
+        f"and we would love to get it back live to send bookings your way.\n\n"
+        f"Do you still have it?"
     )
     email_body = (
         f"{greeting}\n\n"
@@ -77,10 +80,11 @@ def _reactivate_old(greeting: str, market: str, assignee_name: str = "the team",
 
 def _get_live(greeting: str, market: str, assignee_name: str = "the team", **_) -> dict:
     sms_body = (
-        f"{greeting} {assignee_name} here from Boatsetter. I came across your listing and "
-        f"saw it never went live.\n\n"
-        f"Demand in {market} is strong right now and we can help get it live quickly if you "
-        f"still have the boat.\nDo you still have it?\n\n"
+        f"{greeting}\n\n"
+        f"{assignee_name} here from Boatsetter.\n\n"
+        f"I came across your listing and saw it never went live. Demand in {market} is strong right "
+        f"now and we can help get it live quickly if you still have the boat.\n\n"
+        f"Do you still have it?\n\n"
         f"Best, {assignee_name}"
     )
     email_body = (
@@ -117,9 +121,11 @@ def _prospect(greeting: str, market: str, row: dict = None, **_) -> dict:
 
     if variant == "fishing":
         sms_body = (
-            f"{greeting} Casey here from Boatsetter. {name_ref}. Looks like you're running "
-            f"fishing charters in {market}. We're a booking marketplace and anglers in the area "
-            f"are actively searching for guides like you. Would you be open to a quick chat?\n\n"
+            f"{greeting}\n\n"
+            f"Casey here from Boatsetter. {name_ref}.\n\n"
+            f"Looks like you're running fishing charters in {market}. We're a booking marketplace "
+            f"and anglers in the area are actively searching for guides like you.\n\n"
+            f"Would you be open to a quick chat?\n\n"
             f"- Casey"
         )
         email_body = (
@@ -140,10 +146,12 @@ def _prospect(greeting: str, market: str, row: dict = None, **_) -> dict:
 
     elif variant == "rental":
         sms_body = (
-            f"{greeting} Casey here from Boatsetter. {name_ref} and wanted to reach out. "
+            f"{greeting}\n\n"
+            f"Casey here from Boatsetter. {name_ref}.\n\n"
             f"We're a peer-to-peer boat rental marketplace growing in {market}. Listing on "
-            f"Boatsetter fills your open calendar days without you chasing bookings. "
-            f"Would you be open to a quick chat?\n\n- Casey"
+            f"Boatsetter fills your open calendar days without you chasing bookings.\n\n"
+            f"Would you be open to a quick chat?\n\n"
+            f"- Casey"
         )
         email_body = (
             f"{greeting}\n\n"
@@ -165,9 +173,12 @@ def _prospect(greeting: str, market: str, row: dict = None, **_) -> dict:
         activities   = (row.get("Activities/Events/Services") or "").split(",")[0].strip().lower()
         activity_ref = f", including {activities}," if activities else ""
         sms_body = (
-            f"{greeting} Casey here from Boatsetter. {name_ref}{activity_ref} in {market}. "
+            f"{greeting}\n\n"
+            f"Casey here from Boatsetter. {name_ref}{activity_ref} in {market}.\n\n"
             f"We're a boat and experience marketplace. Visitors search our platform when "
-            f"booking exactly what you offer. Think it's worth a quick chat?\n\n- Casey"
+            f"booking exactly what you offer.\n\n"
+            f"Think it's worth a quick chat?\n\n"
+            f"- Casey"
         )
         email_body = (
             f"{greeting}\n\n"
@@ -197,10 +208,13 @@ def _cross_list_bs(
     noun = _boat_noun(boat_count)
 
     sms_body = (
-        f"{greeting} {assignee_name} from Boatsetter here. With the Boatsetter + GetMyBoat "
-        f"merger, we can now list {noun} on both platforms to capture more bookings in "
-        f"{market}. Calendars will sync across both platforms.\n"
-        f"We handle setup and calendars sync. Are you open to a quick chat?\n\n"
+        f"{greeting}\n\n"
+        f"{assignee_name} from Boatsetter here.\n\n"
+        f"With the Boatsetter + GetMyBoat merger, we can now list {noun} on both platforms to "
+        f"capture more bookings in {market}.\n"
+        f"Calendars will sync across both platforms.\n\n"
+        f"We handle setup and calendars sync.\n\n"
+        f"Are you open to a quick chat?\n\n"
         f"- {assignee_name}"
     )
     email_body = (
@@ -226,9 +240,10 @@ def _cross_list_bs(
 def _cross_list_gmb(greeting: str, market: str, assignee_name: str = "the team", **_) -> dict:
     """GMB - Live owners: from Getmyboat, inviting them to also list on Boatsetter."""
     sms_body = (
-        f"{greeting} {assignee_name} from Getmyboat here. With the Getmyboat + Boatsetter "
-        f"merge, we can now get you listed on both platforms with synced calendars to help "
-        f"drive more demand in {market} this season.\n\n"
+        f"{greeting}\n\n"
+        f"{assignee_name} from Getmyboat here.\n\n"
+        f"With the Getmyboat + Boatsetter merge, we can now get you listed on both platforms "
+        f"with synced calendars to help drive more demand in {market} this season.\n\n"
         f"Would you be open to a quick call this week to walk through it?\n\n"
         f"- {assignee_name}"
     )
@@ -259,9 +274,11 @@ def _bs_followup(
     """Touch 2 and 3 for reactivate and get_live (real rep name)."""
     if touch == 2:
         sms_body = (
-            f"{greeting} {assignee_name} here from Boatsetter. Just following up on my last message.\n"
-            f"Demand in {market} is strong right now and we'd love to get your boat live to send "
-            f"bookings your way. Is it still available?"
+            f"{greeting}\n\n"
+            f"{assignee_name} here from Boatsetter.\n\n"
+            f"Just following up on my last message. Demand in {market} is strong right now and "
+            f"we'd love to get your boat live to send bookings your way.\n\n"
+            f"Is it still available?"
         )
         email_body = (
             f"{greeting}\n\n"
@@ -273,9 +290,11 @@ def _bs_followup(
         subject = "Following up on your listing - is it still available?"
     else:
         sms_body = (
-            f"{greeting} {assignee_name}, one last follow-up from Boatsetter. "
+            f"{greeting}\n\n"
+            f"{assignee_name} here, one last follow-up from Boatsetter.\n\n"
             f"If you're still interested in listing your boat in {market}, "
-            f"just reply here and I'll get you set up. Cheers!"
+            f"just reply here and I'll get you set up.\n\n"
+            f"Cheers!"
         )
         email_body = (
             f"{greeting}\n\n"
@@ -298,9 +317,11 @@ def _casey_followup(greeting: str, market: str, touch: int, row: dict = None, **
 
     if touch == 2:
         sms_body = (
-            f"{greeting} Casey again from Boatsetter. Just following up on my last message.\n\n"
-            f"We're actively building out our network in {market} and would love to get "
-            f"{name_ref} listed. Happy to walk you through it in 10 minutes. Still open to it?"
+            f"{greeting}\n\n"
+            f"Casey again from Boatsetter.\n\n"
+            f"Just following up on my last message. We're actively building out our network in "
+            f"{market} and would love to get {name_ref} listed.\n\n"
+            f"Happy to walk you through it in 10 minutes. Still open to it?"
         )
         email_body = (
             f"{greeting}\n\n"
@@ -313,9 +334,11 @@ def _casey_followup(greeting: str, market: str, touch: int, row: dict = None, **
         subject = f"Following up on Boatsetter listing for {name_ref}"
     else:
         sms_body = (
-            f"{greeting} Casey, one last follow-up from Boatsetter. "
+            f"{greeting}\n\n"
+            f"Casey here, one last follow-up from Boatsetter.\n\n"
             f"If you're interested in getting {name_ref} listed and driving more bookings in "
-            f"{market}, just reply and I'll get you set up. No pressure either way!"
+            f"{market}, just reply and I'll get you set up.\n\n"
+            f"No pressure either way!"
         )
         email_body = (
             f"{greeting}\n\n"
@@ -336,9 +359,10 @@ def _cross_list_bs_followup(
     """Touch 2 and 3 for BS - Live cross_list (Boatsetter → Getmyboat)."""
     if touch == 2:
         sms_body = (
-            f"{greeting} {assignee_name} from Boatsetter. Just wanted to circle back on "
-            f"getting your boat live on Getmyboat too. We're prioritizing active owners to "
-            f"help them with the setup.\n\n"
+            f"{greeting}\n\n"
+            f"{assignee_name} from Boatsetter.\n\n"
+            f"Just wanted to circle back on getting your boat live on Getmyboat too. "
+            f"We're prioritizing active owners to help them with the setup.\n\n"
             f"Want us to get this started for you?\n\n"
             f"- {assignee_name}"
         )
@@ -355,8 +379,10 @@ def _cross_list_bs_followup(
         subject = f"Following up on the Getmyboat listing in {market}"
     else:
         sms_body = (
-            f"{greeting} {assignee_name} from Boatsetter...one last follow-up on the Getmyboat "
-            f"opportunity. If timing isn't right, no worries, just reply whenever you're ready.\n\n"
+            f"{greeting}\n\n"
+            f"{assignee_name} from Boatsetter.\n\n"
+            f"One last follow-up on the Getmyboat opportunity. If timing isn't right, no worries, "
+            f"just reply whenever you're ready.\n\n"
             f"- {assignee_name}"
         )
         email_body = (
@@ -377,9 +403,11 @@ def _cross_list_gmb_followup(
     """Touch 2 and 3 for GMB - Live cross_list (Getmyboat → Boatsetter)."""
     if touch == 2:
         sms_body = (
-            f"{greeting} {assignee_name} from Getmyboat here. Just wanted to follow up\n\n"
-            f"We're prioritizing active owners in {market} set up on Boatsetter to capture "
-            f"additional demand.\nWould you be open to a quick call to walk through it?\n\n"
+            f"{greeting}\n\n"
+            f"{assignee_name} from Getmyboat here.\n\n"
+            f"Just wanted to follow up. We're prioritizing active owners in {market} to get set up "
+            f"on Boatsetter to capture additional demand.\n\n"
+            f"Would you be open to a quick call to walk through it?\n\n"
             f"- {assignee_name}"
         )
         email_body = (
@@ -395,7 +423,8 @@ def _cross_list_gmb_followup(
         subject = f"Following up on Boatsetter x Getmyboat in {market}"
     else:
         sms_body = (
-            f"{greeting} {assignee_name} here from Getmyboat, last follow-up from me.\n\n"
+            f"{greeting}\n\n"
+            f"{assignee_name} here from Getmyboat, last follow-up from me.\n\n"
             f"If you'd like to get set up on Boatsetter to capture more bookings in {market}, "
             f"happy to walk you through it.\n\n"
             f"Just let me know!\n\n"
