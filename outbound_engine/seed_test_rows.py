@@ -52,18 +52,20 @@ def _seed_tab(sheet_id, tab_name, rows_fn, dry_run, report):
 
 def seed_test_rows(
     sheet_id: str,
-    bs_live: str      = "BS - Live",
-    gmb_live: str     = "GMB - Live",
-    bs_not_live: str  = "BS - Not Live",
-    prospects: str    = "Prospects",
-    dry_run: bool     = False,
-    on_progress       = None,
+    bs_live: str          = "BS - Live",
+    gmb_live: str         = "GMB - Live",
+    bs_not_live: str      = "BS - Not Live",
+    prospects: str        = "Prospects",
+    dry_run: bool         = False,
+    on_progress           = None,
+    members: list | None  = None,
 ) -> dict:
     """
     Adds test rows to each tab. Returns {tab: rows_added}.
 
-    BS - Not Live: Tyler → Reactivate, Fernando → Get Live.
-    All other tabs: both → Cross-List (Live) or Prospect.
+    members: subset of TEAM_MEMBERS to seed. Defaults to all if None.
+    BS - Not Live action assignment (Reactivate / Get Live) is based on each
+    member's position in the master TEAM_MEMBERS list, not the filtered subset.
     """
     def report(msg: str) -> None:
         if on_progress:
@@ -71,14 +73,23 @@ def seed_test_rows(
         else:
             print(msg)
 
-    mode    = "[DRY RUN] " if dry_run else ""
-    results = {}
+    mode           = "[DRY RUN] " if dry_run else ""
+    results        = {}
+    seed_members   = members if members is not None else TEAM_MEMBERS
+
+    # Action assignment for BS - Not Live is positional in the MASTER list,
+    # so each person always gets the same action regardless of who else is seeded.
+    _bs_actions    = ["Reactivate", "Get Live"]
+    _action_by_email = {
+        m["email"]: _bs_actions[i % len(_bs_actions)]
+        for i, m in enumerate(TEAM_MEMBERS)
+    }
 
     # ── BS - Live ──────────────────────────────────────────────────────────────
     report(f"{mode}BS - Live...")
     def _bs_live_rows(existing):
         rows = []
-        for m in TEAM_MEMBERS:
+        for m in seed_members:
             if _already_seeded(existing, COL_OWNER_EMAIL, m["email"]):
                 report(f"  {m['first_name']} already present — skipped")
                 continue
@@ -98,7 +109,7 @@ def seed_test_rows(
     report(f"{mode}GMB - Live...")
     def _gmb_live_rows(existing):
         rows = []
-        for m in TEAM_MEMBERS:
+        for m in seed_members:
             if _already_seeded(existing, COL_OWNER_EMAIL, m["email"]):
                 report(f"  {m['first_name']} already present — skipped")
                 continue
@@ -118,12 +129,12 @@ def seed_test_rows(
     # Tyler → Reactivate, Fernando → Get Live (tests both message variants)
     report(f"{mode}BS - Not Live...")
     def _bs_not_live_rows(existing):
-        rows    = []
-        actions = ["Reactivate", "Get Live"]
-        for m, action in zip(TEAM_MEMBERS, actions):
+        rows = []
+        for m in seed_members:
             if _already_seeded(existing, COL_OWNER_EMAIL, m["email"]):
                 report(f"  {m['first_name']} already present — skipped")
                 continue
+            action = _action_by_email.get(m["email"], "Get Live")
             rows.append(({
                 COL_FIRST_NAME:     m["first_name"],
                 COL_LAST_NAME:      m["last_name"],
@@ -145,7 +156,7 @@ def seed_test_rows(
 
     def _prospect_rows(existing):
         rows = []
-        for m in TEAM_MEMBERS:
+        for m in seed_members:
             if _already_seeded(existing, email_col, m["email"]):
                 report(f"  {m['first_name']} already present — skipped")
                 continue
