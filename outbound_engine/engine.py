@@ -44,6 +44,7 @@ from kustomer_client import KustomerClient
 from sheets_connector import SheetsConnector
 from segmentation import filter_eligible_rows, has_email, has_phone
 from templates import get_messages
+from template_store import load_overrides as _load_template_overrides
 from round_robin import get_next_assignee
 from logger import setup_file_logger, now_iso, RunSummary
 
@@ -244,6 +245,15 @@ def run_campaign(
     report(f"{mode_label}Starting campaign: segment={segment}, market={market}")
     logger.info(f"{mode_label}segment={segment} market={market} sheet_id={sheet_id} sheet_name={sheet_name}")
 
+    # ── Load per-market template overrides ───────────────────────────────────
+    try:
+        _market_templates = _load_template_overrides(sheet_id)
+        if _market_templates:
+            logger.info(f"Loaded {len(_market_templates)} template override(s).")
+    except Exception as exc:
+        _market_templates = {}
+        logger.warning(f"Could not load template overrides: {exc}")
+
     # ── Load data ─────────────────────────────────────────────────────────────
     report("Reading rows from Google Sheets...")
     sheets = SheetsConnector(sheet_id, sheet_name)
@@ -292,7 +302,8 @@ def run_campaign(
             variant     = _message_variant(segment, sheet_name, row)
             messages    = get_messages(
                 segment, row, market,
-                assignee_name=assignee["name"], touch=touch, variant=variant
+                assignee_name=assignee["name"], touch=touch, variant=variant,
+                market_overrides=_market_templates,
             )
 
             report(f"\n[{i}/{len(eligible)}] {full_name}  (Touch {touch} — {_TOUCH_LABELS[touch]})")
@@ -343,7 +354,8 @@ def run_campaign(
         variant  = _message_variant(segment, sheet_name, row)
         messages = get_messages(
             segment, row, market,
-            assignee_name=assignee["name"], touch=touch, variant=variant
+            assignee_name=assignee["name"], touch=touch, variant=variant,
+            market_overrides=_market_templates,
         )
         email_col, sms_col = _TOUCH_COLS[touch]
         email_sent = False

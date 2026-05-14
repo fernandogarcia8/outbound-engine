@@ -453,6 +453,67 @@ _TOUCH1_BUILDERS = {
 }
 
 
+def _render_template(text: str, **subs) -> str:
+    """Substitutes {placeholder} tokens in a template override string."""
+    for k, v in subs.items():
+        text = text.replace(f"{{{k}}}", str(v))
+    return text
+
+
+def get_default_templates() -> dict[str, str]:
+    """
+    Returns all template defaults as format strings with {placeholder} tokens.
+    Used by the UI editor to show baseline copy and as fallback when a partial
+    override exists (e.g. only SMS is overridden — email falls back to this).
+
+    Keys follow the pattern:  {segment_key}_t{touch}_{channel}
+    Channels: sms, email, subject
+    """
+    d: dict[str, str] = {}
+
+    def _add(prefix: str, msgs: dict) -> None:
+        d[f"{prefix}_sms"]     = msgs["sms_body"]
+        d[f"{prefix}_email"]   = msgs["email_body"]
+        d[f"{prefix}_subject"] = msgs["email_subject"]
+
+    # ── Touch 1 ───────────────────────────────────────────────────────────────
+    _add("reactivate_recent_t1", _reactivate_recent(
+        greeting="{greeting}", market="{market}", assignee_name="{rep}"))
+    _add("reactivate_old_t1", _reactivate_old(
+        greeting="{greeting}", market="{market}", assignee_name="{rep}"))
+    _add("get_live_t1", _get_live(
+        greeting="{greeting}", market="{market}", assignee_name="{rep}"))
+    _add("cross_list_bs_t1", _cross_list_bs(
+        greeting="{greeting}", market="{market}", assignee_name="{rep}", boat_count=1))
+    _add("cross_list_gmb_t1", _cross_list_gmb(
+        greeting="{greeting}", market="{market}", assignee_name="{rep}"))
+
+    for variant in ("fishing", "rental", "charter"):
+        _add(f"prospect_{variant}_t1", _prospect(
+            greeting="{greeting}", market="{market}",
+            row={"Type": variant, "Charter Name": "{charter_name}", "Activities/Events/Services": ""},
+        ))
+
+    # ── Touch 2 & 3 ───────────────────────────────────────────────────────────
+    for touch in (2, 3):
+        for seg in ("reactivate_recent", "reactivate_old", "get_live"):
+            _add(f"{seg}_t{touch}", _bs_followup(
+                greeting="{greeting}", market="{market}", assignee_name="{rep}", touch=touch))
+
+        _add(f"cross_list_bs_t{touch}", _cross_list_bs_followup(
+            greeting="{greeting}", market="{market}", assignee_name="{rep}", touch=touch))
+        _add(f"cross_list_gmb_t{touch}", _cross_list_gmb_followup(
+            greeting="{greeting}", market="{market}", assignee_name="{rep}", touch=touch))
+
+        for variant in ("fishing", "rental", "charter"):
+            _add(f"prospect_{variant}_t{touch}", _casey_followup(
+                greeting="{greeting}", market="{market}", touch=touch,
+                row={"Charter Name": "{charter_name}"},
+            ))
+
+    return d
+
+
 def get_messages(
     segment: str,
     row: dict,
@@ -460,6 +521,7 @@ def get_messages(
     assignee_name: str = "the team",
     touch: int = 1,
     variant: str | None = None,
+    market_overrides: dict | None = None,
 ) -> dict:
     """
     Returns {"sms_body": ..., "email_body": ..., "email_subject": ...}.
@@ -467,6 +529,10 @@ def get_messages(
     variant:
       reactivate — "recent" (< 90 days inactive) or None/"old"
       cross_list — "bs" (Boatsetter → Getmyboat) or "gmb" (Getmyboat → Boatsetter)
+
+    market_overrides:
+      Dict of {template_key: content} loaded from the market's _templates tab.
+      Any matching key replaces the corresponding field in the result.
     """
     if segment not in _TOUCH1_BUILDERS:
         raise ValueError(
@@ -476,33 +542,73 @@ def get_messages(
     greeting   = _greeting(row)
     boat_count = int(row.get("_boat_count") or 1)
 
+    # Compute segment key used for override lookup
+    if segment == "reactivate":
+        _seg_key = f"reactivate_{variant or 'old'}"
+    elif segment == "cross_list":
+        _seg_key = f"cross_list_{variant or 'bs'}"
+    elif segment == "prospect":
+        _seg_key = f"prospect_{_prospect_variant(row)}"
+    else:
+        _seg_key = segment  # "get_live"
+
+    # Run the default template function
     if touch == 1:
         if segment == "reactivate" and variant == "recent":
-            return _reactivate_recent(
+            result = _reactivate_recent(
                 greeting=greeting, market=market, assignee_name=assignee_name,
                 boat_count=boat_count, row=row,
             )
-        if segment == "cross_list" and variant == "gmb":
-            return _cross_list_gmb(
+        elif segment == "cross_list" and variant == "gmb":
+            result = _cross_list_gmb(
                 greeting=greeting, market=market, assignee_name=assignee_name,
                 boat_count=boat_count, row=row,
             )
-        return _TOUCH1_BUILDERS[segment](
-            greeting=greeting, market=market, assignee_name=assignee_name,
-            boat_count=boat_count, row=row,
-        )
-
-    if segment == "cross_list":
+        else:
+            result = _TOUCH1_BUILDERS[segment](
+                greeting=greeting, market=market, assignee_name=assignee_name,
+                boat_count=boat_count, row=row,
+            )
+    elif segment == "cross_list":
         if variant == "gmb":
-            return _cross_list_gmb_followup(
+            result = _cross_list_gmb_followup(
                 greeting=greeting, market=market, assignee_name=assignee_name, touch=touch, row=row,
             )
-        return _cross_list_bs_followup(
-            greeting=greeting, market=market, assignee_name=assignee_name, touch=touch, row=row,
+        else:
+            result = _cross_list_bs_followup(
+                greeting=greeting, market=market, assignee_name=assignee_name, touch=touch, row=row,
+            )
+    elif segment == "prospect":
+        result = _casey_followup(greeting=greeting, market=market, touch=touch, row=row)
+    else:
+        result = _bs_followup(
+            greeting=greeting, market=market, touch=touch, assignee_name=assignee_name
         )
-    if segment == "prospect":
-        return _casey_followup(greeting=greeting, market=market, touch=touch, row=row)
 
-    return _bs_followup(
-        greeting=greeting, market=market, touch=touch, assignee_name=assignee_name
-    )
+    # Apply market-specific overrides (field by field — partial overrides are supported)
+    if market_overrides:
+        charter_name = (row.get("Charter Name") or "").strip()
+        activities   = (row.get("Activities/Events/Services") or "").split(",")[0].strip().lower()
+        subs = {
+            "greeting":     greeting,
+            "market":       market,
+            "rep":          assignee_name,
+            "boat_noun":    _boat_noun(boat_count),
+            "charter_name": charter_name,
+            "name_ref": (
+                f"I came across {charter_name}" if charter_name
+                else "I came across your operation"
+            ),
+            "activity_ref": f", including {activities}," if activities else "",
+        }
+        key_prefix = f"{_seg_key}_t{touch}"
+        for field, result_key in (
+            ("sms",     "sms_body"),
+            ("email",   "email_body"),
+            ("subject", "email_subject"),
+        ):
+            override = market_overrides.get(f"{key_prefix}_{field}")
+            if override:
+                result[result_key] = _render_template(override, **subs)
+
+    return result

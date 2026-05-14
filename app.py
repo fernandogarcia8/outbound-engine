@@ -53,6 +53,8 @@ from classify_not_live import classify_not_live
 from cross_list import detect_cross_list
 from engine import run_campaign
 from seed_test_rows import seed_test_rows
+from template_store import load_overrides, save_overrides
+from templates import get_default_templates
 
 
 # ── Page config ────────────────────────────────────────────────────────────────
@@ -218,7 +220,7 @@ st.markdown("")
 
 # ── Tabs ───────────────────────────────────────────────────────────────────────
 
-tab_setup, tab_prep, tab_outreach = st.tabs(["📋  Setup", "🔍  Prep", "📨  Outreach"])
+tab_setup, tab_prep, tab_outreach, tab_messaging = st.tabs(["📋  Setup", "🔍  Prep", "📨  Outreach", "✏️  Messaging"])
 
 
 # ══ TAB 1: Setup ═══════════════════════════════════════════════════════════════
@@ -440,3 +442,154 @@ with tab_outreach:
                         "<hr style='margin:0.6rem 0; border:none; border-top:1px solid #E2E8F0'>",
                         unsafe_allow_html=True,
                     )
+
+
+# ══ TAB 4: Messaging ═══════════════════════════════════════════════════════════
+
+_SEGMENT_LABELS = {
+    "reactivate_recent": "Reactivate — Recent (< 90 days inactive)",
+    "reactivate_old":    "Reactivate — Old (90+ days / no date)",
+    "get_live":          "Get Live",
+    "cross_list_bs":     "Cross-List — BS Live → pitch Getmyboat",
+    "cross_list_gmb":    "Cross-List — GMB Live → pitch Boatsetter",
+    "prospect_fishing":  "Prospect — Fishing Charter",
+    "prospect_rental":   "Prospect — Rental / Sailboat",
+    "prospect_charter":  "Prospect — Charter / Tour / Watersports",
+}
+
+_TOUCH_LABELS_MSG = {1: "Touch 1 — Initial", 2: "Touch 2 — Follow-up 1", 3: "Touch 3 — Follow-up 2"}
+
+with tab_messaging:
+    st.markdown("### Message Templates")
+    st.markdown(
+        "View and customize the outreach copy for this market. "
+        "The default templates are used unless you save an override here. "
+        "Overrides are stored in the market's Google Sheet and applied automatically at send time."
+    )
+    st.markdown("")
+
+    # ── Load overrides into session state (once per market per session) ────────
+    _ovr_key = f"tmpl_overrides_{sheet_id}"
+    if _ovr_key not in st.session_state:
+        with st.spinner("Loading saved templates..."):
+            try:
+                st.session_state[_ovr_key] = load_overrides(sheet_id)
+            except Exception:
+                st.session_state[_ovr_key] = {}
+    _overrides = st.session_state[_ovr_key]
+
+    # Load defaults once (pure Python — no API call)
+    _defaults = get_default_templates()
+
+    # ── Selectors ─────────────────────────────────────────────────────────────
+    sel_col1, sel_col2 = st.columns([3, 2])
+    with sel_col1:
+        sel_segment = st.selectbox(
+            "Segment",
+            options=list(_SEGMENT_LABELS.keys()),
+            format_func=lambda k: _SEGMENT_LABELS[k],
+            key="msg_segment",
+        )
+    with sel_col2:
+        sel_touch = st.radio(
+            "Touch",
+            options=[1, 2, 3],
+            format_func=lambda t: _TOUCH_LABELS_MSG[t],
+            horizontal=True,
+            key="msg_touch",
+        )
+
+    st.markdown("")
+
+    _key_prefix   = f"{sel_segment}_t{sel_touch}"
+    _sms_key      = f"{_key_prefix}_sms"
+    _email_key    = f"{_key_prefix}_email"
+    _subject_key  = f"{_key_prefix}_subject"
+
+    _is_customized = any(k in _overrides for k in (_sms_key, _email_key, _subject_key))
+
+    if _is_customized:
+        st.success(f"Customized for **{market_name}** — this template overrides the default.")
+    else:
+        st.info("Using the default template. Edit and save below to customize for this market.")
+
+    st.markdown("")
+
+    # ── Subject ───────────────────────────────────────────────────────────────
+    _subject_widget_key = f"msg_subject_{_key_prefix}"
+    if _subject_widget_key not in st.session_state:
+        st.session_state[_subject_widget_key] = _overrides.get(_subject_key, _defaults.get(_subject_key, ""))
+
+    st.markdown('<p class="section-label">Email Subject</p>', unsafe_allow_html=True)
+    new_subject = st.text_input(
+        "Email Subject",
+        key=_subject_widget_key,
+        label_visibility="collapsed",
+    )
+
+    # ── SMS + Email side by side ───────────────────────────────────────────────
+    st.markdown("")
+    msg_col_sms, msg_col_email = st.columns(2)
+
+    _sms_widget_key   = f"msg_sms_{_key_prefix}"
+    _email_widget_key = f"msg_email_{_key_prefix}"
+
+    if _sms_widget_key not in st.session_state:
+        st.session_state[_sms_widget_key] = _overrides.get(_sms_key, _defaults.get(_sms_key, ""))
+    if _email_widget_key not in st.session_state:
+        st.session_state[_email_widget_key] = _overrides.get(_email_key, _defaults.get(_email_key, ""))
+
+    with msg_col_sms:
+        st.markdown('<p class="section-label">SMS Body</p>', unsafe_allow_html=True)
+        new_sms = st.text_area(
+            "SMS Body",
+            key=_sms_widget_key,
+            height=340,
+            label_visibility="collapsed",
+        )
+
+    with msg_col_email:
+        st.markdown('<p class="section-label">Email Body</p>', unsafe_allow_html=True)
+        new_email = st.text_area(
+            "Email Body",
+            key=_email_widget_key,
+            height=340,
+            label_visibility="collapsed",
+        )
+
+    st.caption(
+        "Available placeholders: `{greeting}` · `{market}` · `{rep}` · "
+        "`{boat_noun}` · `{charter_name}` · `{name_ref}` · `{activity_ref}`"
+    )
+    st.markdown("")
+
+    # ── Action buttons ────────────────────────────────────────────────────────
+    btn_col1, btn_col2, _ = st.columns([1.4, 1.2, 4])
+
+    with btn_col1:
+        if st.button(f"Save for {market_name}", type="primary", key="msg_save"):
+            _overrides[_sms_key]     = new_sms
+            _overrides[_email_key]   = new_email
+            _overrides[_subject_key] = new_subject
+            st.session_state[_ovr_key] = _overrides
+            try:
+                save_overrides(sheet_id, _overrides)
+                st.success("Saved!")
+                st.rerun()
+            except Exception as e:
+                st.error(f"Save failed: {e}")
+
+    with btn_col2:
+        if _is_customized and st.button("Reset to default", key="msg_reset"):
+            for _k in (_sms_key, _email_key, _subject_key):
+                _overrides.pop(_k, None)
+            # Reset widget state so textareas show the default on next render
+            st.session_state[_sms_widget_key]     = _defaults.get(_sms_key, "")
+            st.session_state[_email_widget_key]   = _defaults.get(_email_key, "")
+            st.session_state[_subject_widget_key] = _defaults.get(_subject_key, "")
+            st.session_state[_ovr_key] = _overrides
+            try:
+                save_overrides(sheet_id, _overrides)
+                st.rerun()
+            except Exception as e:
+                st.error(f"Reset failed: {e}")
