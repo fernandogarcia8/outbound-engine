@@ -47,7 +47,8 @@ A Python + Streamlit outreach engine for Boatsetter's supply team. Reads boat ow
     ├── cross_list.py             ← 6-layer cross-list detection (runs during Prep)
     ├── split_not_live.py         ← Splits BS-Not-Live into actionable vs churn
     ├── classify_not_live.py      ← Assigns Tier + Action + Contact Status
-    ├── seed_test_rows.py         ← Seeds Tyler + Fernando as test rows in all tabs
+    ├── seed_test_rows.py         ← Seeds team members as test rows (per-person selection)
+    ├── template_store.py         ← Loads/saves per-market template overrides from _templates tab
     ├── market_discovery.py       ← Scans Drive folder, resolves shortcuts
     ├── round_robin.py            ← Tyler ↔ Fernando assignment, persisted to JSON
     ├── logger.py                 ← File logger + RunSummary
@@ -209,6 +210,24 @@ A row is eligible if:
 
 All copy lives in `templates.py`. `get_messages()` is the single entry point — returns `{sms_body, email_body, email_subject}`.
 
+### Per-market overrides (✏️ Messaging tab)
+
+The web app has a **Messaging** tab where you can edit and save custom copy per market. Overrides are stored in a `_templates` tab in each market's Google Sheet (auto-created on first save). The engine loads overrides at campaign start and applies them field-by-field — if only SMS is overridden, email falls back to the default.
+
+Supported placeholders in override text:
+
+| Placeholder | Resolves to |
+|---|---|
+| `{greeting}` | "Hi John," or "Hi there," |
+| `{market}` | Market name (e.g. "Savannah") |
+| `{rep}` | Rep name or "Casey" for prospects |
+| `{boat_noun}` | "your boat" / "your boats" / "your fleet" |
+| `{charter_name}` | Business name (prospect templates) |
+| `{name_ref}` | "I came across X" or "I came across your operation" |
+| `{activity_ref}` | ", including fishing trips," or "" |
+
+If no override exists for a market, the hardcoded defaults in `templates.py` are used — zero behavior change.
+
 ### Signing
 
 | Segment | Signed as |
@@ -230,21 +249,6 @@ All copy lives in `templates.py`. `get_messages()` is the single entry point —
 | `charter` | Everything else (tours, eco, sunset, watersports, yacht) |
 
 Business name from `Charter Name` column is injected into prospect templates.
-
-### SMS formatting
-
-All SMS bodies follow this structure (blank lines between each section):
-```
-Hi [Name],
-
-[Rep] from [Platform] here.
-
-[Pitch body]
-
-[CTA question]
-
-- [Rep]
-```
 
 ### Copy rules
 
@@ -311,7 +315,7 @@ Toggle "Test contacts only" in the sidebar. In test mode:
 
 ### Seeding test rows
 
-With test mode on, go to the Outreach tab → Test Setup → click **Seed test rows**. Adds Tyler and Fernando to all sheet tabs automatically. Idempotent — skips any tab where they already exist.
+With test mode on, go to the Outreach tab → Test Setup. Use the multiselect to choose which team members to seed (defaults to all), then click **Seed test rows**. Idempotent — skips any tab where a contact already exists.
 
 | Tab | Tyler's row | Fernando's row |
 |---|---|---|
@@ -320,7 +324,9 @@ With test mode on, go to the Outreach tab → Test Setup → click **Seed test r
 | BS - Not Live | Reactivate · Pending Outreach | Get Live · Pending Outreach |
 | Prospects | Prospect | Prospect |
 
-Kustomer ID is left blank when seeded — the engine fills it at send time via `get_or_create_customer()`.
+Action assignments (Reactivate / Get Live) are fixed per person regardless of who is selected. Kustomer ID is left blank when seeded — the engine fills it at send time via `get_or_create_customer()`.
+
+**Testing individually:** Select only your own name in the multiselect, or manually clear the `Notes = "test"` value from someone else's row in the sheet — the engine skips any row where Notes ≠ "test".
 
 ### Confirmation gate
 
@@ -422,7 +428,8 @@ TEAM_MEMBERS = [
 - Cross-list detection (6 layers including name matching)
 - Prep pipeline (split → classify → detect) with colored dropdowns
 - Engine: all segments, 3-touch sequence, 2-day gap enforcement
-- Test mode with seed button (idempotent)
+- **Per-market message template overrides** — Messaging tab in the web app, stored in `_templates` Sheet tab
+- Test mode with per-person seed selection (idempotent)
 - Round-robin rep assignment, persisted in `round_robin_state.json`
 - Confirmation gate before live sends
 - Independent email/SMS error handling
@@ -432,6 +439,7 @@ TEAM_MEMBERS = [
 ### Pending / Not Yet Built
 
 1. **Fire live Savannah outreach** — all validation done, ready
-2. **Funnel detection for Prospects tab** — cross-reference scraped operators against existing BS/GMB sheets before outreach (discussed, not built)
-3. **BS - Churn outreach** — no process yet; opportunity in `pending_insurance`, `deactivated`, `deleted`
-4. **Orlando** — needs raw Snowflake data + prep before outreach
+2. **Prospect scraping automation** — currently manual via `/boat-charter-prospector` skill in Claude Code; automating via Anthropic API + search API discussed but not built
+3. **Funnel detection for Prospects tab** — cross-reference scraped operators against existing BS/GMB sheets before outreach (discussed, not built)
+4. **BS - Churn outreach** — no process yet; opportunity in `pending_insurance`, `deactivated`, `deleted`
+5. **Orlando** — needs raw Snowflake data + prep before outreach

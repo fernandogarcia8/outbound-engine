@@ -13,7 +13,8 @@
     ├── cross_list.py
     ├── split_not_live.py
     ├── classify_not_live.py
-    ├── seed_test_rows.py   ← Seeds Tyler + Fernando as test rows in all tabs
+    ├── seed_test_rows.py   ← Seeds team members as test rows (per-person selection)
+    ├── template_store.py   ← Loads/saves per-market template overrides from _templates tab
     ├── market_discovery.py ← Drive folder scanner (handles shortcuts)
     ├── templates.py
     ├── segmentation.py
@@ -191,6 +192,22 @@ Prep also adds outreach tracking columns and colored dropdowns to both Live tabs
 
 ---
 
+## Per-market template overrides (template_store.py + ✏️ Messaging tab)
+
+The web app has a **Messaging** tab (4th tab) that lets you edit copy per market. On save, overrides are written to a `_templates` tab in the market's Google Sheet (auto-created). The engine loads these at campaign start and applies them field by field — unoverridden fields fall back to the hardcoded defaults in `templates.py`. No behavior change for markets with no overrides.
+
+Supported placeholders: `{greeting}` · `{market}` · `{rep}` · `{boat_noun}` · `{charter_name}` · `{name_ref}` · `{activity_ref}`
+
+---
+
+## Test mode — per-person seeding
+
+In the Test Setup section (Outreach tab, test mode on), a multiselect lets you choose which team members to seed (defaults to all). Action assignments in BS - Not Live (Tyler → Reactivate, Fernando → Get Live) are fixed per person regardless of who is selected.
+
+To test individually without re-seeding: just clear the `Notes = "test"` value from the other person's row in the sheet — the engine skips any row where Notes ≠ "test".
+
+---
+
 ## Templates (templates.py)
 
 ### No em dashes anywhere in user-facing copy
@@ -259,11 +276,13 @@ In Drive folder. Sheet is empty/fresh — no prep run yet.
    - Phase 2: BS - Not Live (24 reactivate + 11 get_live)
    - Phase 3: Prospects (34 operators)
 
-2. **Funnel detection for Prospects tab** — cross-reference scraped operators against BS - Live, GMB - Live, BS - Not Live, BS - Churn before outreach. Discussed, not built yet.
+2. **Prospect scraping automation** — currently manual via `/boat-charter-prospector` skill in Claude Code. To automate: call Anthropic API with the skill as system prompt, back `WebSearch` with Tavily/Serper API, back `WebFetch` with Python requests, write results directly to the Prospects tab. Main challenge: long-running (10-30 min) so Streamlit needs background threading. Discussed, not built.
 
-3. **BS - Churn outreach** — no process yet. Opportunity in `pending_insurance`, `deactivated`, `deleted`.
+3. **Funnel detection for Prospects tab** — cross-reference scraped operators against BS - Live, GMB - Live, BS - Not Live, BS - Churn before outreach. Discussed, not built yet.
 
-4. **Orlando market** — sheet is in Drive folder, needs raw data + prep before outreach.
+4. **BS - Churn outreach** — no process yet. Opportunity in `pending_insurance`, `deactivated`, `deleted`.
+
+5. **Orlando market** — sheet is in Drive folder, needs raw data + prep before outreach.
 
 ---
 
@@ -278,8 +297,9 @@ In Drive folder. Sheet is empty/fresh — no prep run yet.
 - `split_not_live.py` ✅ (handles `blocked` state → BS-Churn)
 - `classify_not_live.py` ✅
 - `engine.py` all segments ✅
+- **Per-market message template overrides** ✅ — Messaging tab, stored in `_templates` Sheet tab
 - Test mode (Notes="test", bypasses eligibility/timing) ✅
-- Seed test rows button (Outreach tab, test mode only) ✅
+- Seed test rows with per-person selection ✅ (Outreach tab, test mode only)
 - Confirmation gate before live sends ✅
 - Prospect templates — fishing / rental / charter variants, no em dashes ✅
 - Deduplication by owner, boat noun (boat/boats/fleet) ✅
