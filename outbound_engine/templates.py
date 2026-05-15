@@ -210,7 +210,7 @@ def _cross_list_bs(
     sms_body = (
         f"{greeting}\n\n"
         f"{assignee_name} from Boatsetter here.\n\n"
-        f"With the Boatsetter + GetMyBoat merger, we can now list {noun} on both platforms to "
+        f"With the Boatsetter + Getmyboat merger, we can now list {noun} on both platforms to "
         f"capture more bookings in {market}.\n"
         f"Calendars will sync across both platforms.\n\n"
         f"We handle setup and calendars sync.\n\n"
@@ -224,7 +224,7 @@ def _cross_list_bs(
         f"additional bookings in {market}. Demand is strong right now.\n\n"
         f"There's no cost to list, calendars will sync to avoid double bookings, and our "
         f"team can handle most of the setup.\n\n"
-        f"You'd just need to create and verify your GetMyBoat account and add payout details. "
+        f"You'd just need to create and verify your Getmyboat account and add payout details. "
         f"We'll take care of the rest.\n\n"
         f"Want us to get this set up for you?\n\n"
         f"Best,\n{assignee_name}"
@@ -369,7 +369,7 @@ def _cross_list_bs_followup(
         email_body = (
             f"{greeting}\n\n"
             f"Just wanted to follow up here.\n\n"
-            f"We're currently getting a number of owners in {market} set up on GetMyBoat to "
+            f"We're currently getting a number of owners in {market} set up on Getmyboat to "
             f"capture additional demand, and it's been a quick win so far.\n\n"
             f"Happy to handle the setup for you. You'd just need to create your account and "
             f"add payout details.\n\n"
