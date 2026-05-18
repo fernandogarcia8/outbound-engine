@@ -64,6 +64,7 @@ DROPDOWN_CONFIG = {
         ("Reactivate", (0.671, 0.851, 0.914)),  # soft blue
         ("Get Live",   (0.714, 0.882, 0.698)),  # soft green
         ("Check",      (1.000, 0.800, 0.502)),  # peach
+        ("Skip",       (0.800, 0.800, 0.800)),  # gray
     ],
     COL_CONTACT_STATUS: [
         ("Pending Outreach", (1.000, 0.945, 0.463)),  # yellow

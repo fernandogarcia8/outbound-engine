@@ -24,6 +24,7 @@ from datetime import datetime, timezone
 
 from config import (
     SEGMENTS,
+    COL_ACTION,
     COL_OWNER_EMAIL,
     COL_OWNER_PHONE,
     COL_FIRST_NAME,
@@ -40,6 +41,13 @@ from config import (
     SEGMENT_COLUMN_OVERRIDES,
     REACTIVATE_RECENT_DAYS,
 )
+
+_PROSPECT_DROPDOWN_CONFIG = {
+    COL_ACTION: [
+        ("Prospect", (0.714, 0.882, 0.698)),  # soft green
+        ("Skip",     (0.800, 0.800, 0.800)),  # gray
+    ],
+}
 from kustomer_client import KustomerClient
 from sheets_connector import SheetsConnector
 from segmentation import filter_eligible_rows, has_email, has_phone
@@ -257,6 +265,8 @@ def run_campaign(
     # ── Load data ─────────────────────────────────────────────────────────────
     report("Reading rows from Google Sheets...")
     sheets = SheetsConnector(sheet_id, sheet_name)
+    if segment == "prospect" and not dry_run:
+        sheets.apply_column_dropdowns(_PROSPECT_DROPDOWN_CONFIG)
     all_rows = sheets.get_all_rows()
     report(f"Found {len(all_rows)} total rows in sheet.")
 
