@@ -20,12 +20,13 @@ from config import (
 from sheets_connector import SheetsConnector
 
 
-def _already_seeded(rows: list[dict], email_col: str, email: str) -> bool:
-    for row in rows:
+def _already_seeded(rows: list[dict], email_col: str, email: str) -> int | None:
+    """Returns the 1-based data row number of the existing test row, or None."""
+    for i, row in enumerate(rows, start=1):
         if (str(row.get(email_col, "")).strip().lower() == email.lower()
                 and str(row.get(COL_NOTES, "")).strip().lower() == "test"):
-            return True
-    return False
+            return i  # row 1 = first data row (below header)
+    return None
 
 
 def _seed_tab(sheet_id, tab_name, rows_fn, dry_run, report):
@@ -90,8 +91,9 @@ def seed_test_rows(
     def _bs_live_rows(existing):
         rows = []
         for m in seed_members:
-            if _already_seeded(existing, COL_OWNER_EMAIL, m["email"]):
-                report(f"  {m['first_name']} already present — skipped")
+            found_row = _already_seeded(existing, COL_OWNER_EMAIL, m["email"])
+            if found_row:
+                report(f"  {m['first_name']} already present (data row {found_row}) — skipped")
                 continue
             rows.append(({
                 COL_FIRST_NAME:     m["first_name"],
@@ -110,8 +112,9 @@ def seed_test_rows(
     def _gmb_live_rows(existing):
         rows = []
         for m in seed_members:
-            if _already_seeded(existing, COL_OWNER_EMAIL, m["email"]):
-                report(f"  {m['first_name']} already present — skipped")
+            found_row = _already_seeded(existing, COL_OWNER_EMAIL, m["email"])
+            if found_row:
+                report(f"  {m['first_name']} already present (data row {found_row}) — skipped")
                 continue
             rows.append(({
                 COL_FIRST_NAME:     m["first_name"],
@@ -131,8 +134,9 @@ def seed_test_rows(
     def _bs_not_live_rows(existing):
         rows = []
         for m in seed_members:
-            if _already_seeded(existing, COL_OWNER_EMAIL, m["email"]):
-                report(f"  {m['first_name']} already present — skipped")
+            found_row = _already_seeded(existing, COL_OWNER_EMAIL, m["email"])
+            if found_row:
+                report(f"  {m['first_name']} already present (data row {found_row}) — skipped")
                 continue
             action = _action_by_email.get(m["email"], "Get Live")
             rows.append(({
@@ -157,8 +161,9 @@ def seed_test_rows(
     def _prospect_rows(existing):
         rows = []
         for m in seed_members:
-            if _already_seeded(existing, email_col, m["email"]):
-                report(f"  {m['first_name']} already present — skipped")
+            found_row = _already_seeded(existing, email_col, m["email"])
+            if found_row:
+                report(f"  {m['first_name']} already present (data row {found_row}) — skipped")
                 continue
             rows.append(({
                 name_col:           f"{m['first_name']} {m['last_name']}",
