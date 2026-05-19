@@ -78,8 +78,12 @@ class SheetsConnector:
 
     def update_row(self, match_column: str, match_value: str, updates: dict) -> None:
         """
-        Finds the row where match_column == match_value and writes the updates dict
+        Finds ALL rows where match_column == match_value and writes the updates dict
         to those columns. Silently skips columns that don't exist in the sheet.
+        Raises if no matching rows are found.
+
+        Updating all matches ensures that owners with multiple boats (same email/phone)
+        have every row kept in sync — Contact Status, timestamps, Kustomer link, etc.
         """
         headers    = self._sheet.row_values(1)
         all_values = self._sheet.get_all_values()
@@ -90,23 +94,30 @@ class SheetsConnector:
 
         match_col_index = headers.index(match_column)
 
-        target_row_index = None
+        matching_row_indices = []
         for i, row in enumerate(data_rows):
             cell_value = row[match_col_index] if match_col_index < len(row) else ""
             if cell_value.strip() == match_value.strip():
-                target_row_index = i + 2  # +1 for header row, +1 for 1-based index
-                break
+                matching_row_indices.append(i + 2)  # +1 for header, +1 for 1-based
 
-        if target_row_index is None:
+        if not matching_row_indices:
             raise ValueError(
                 f"No row found where '{match_column}' == '{match_value}'"
             )
 
-        for col_name, new_value in updates.items():
-            if col_name not in headers:
-                continue
-            col_index = headers.index(col_name) + 1
-            self._sheet.update_cell(target_row_index, col_index, new_value)
+        cell_updates = []
+        for row_index in matching_row_indices:
+            for col_name, new_value in updates.items():
+                if col_name not in headers:
+                    continue
+                col_index = headers.index(col_name) + 1
+                cell_updates.append({
+                    "range":  rowcol_to_a1(row_index, col_index),
+                    "values": [[new_value]],
+                })
+
+        if cell_updates:
+            self._sheet.batch_update(cell_updates)
 
     def batch_update_rows(
         self, match_column: str, updates: dict[str, dict]
