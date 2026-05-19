@@ -280,10 +280,10 @@ def run_campaign(
             notes    = str(r.get("Notes")    or "").strip().lower()
             owner_id = str(r.get("OWNER_ID") or "").strip().lower()
             return notes == "test" or owner_id == "test"
-        eligible = [
+        eligible = _deduplicate_by_owner([
             (r, 1) for r in all_rows_normalized
             if _is_test_row(r) and (has_email(r) or has_phone(r))
-        ]
+        ])
         report(f"[TEST ONLY] Found {len(eligible)} test contact(s).")
     else:
         raw_eligible = filter_eligible_rows(all_rows_normalized, segment)
