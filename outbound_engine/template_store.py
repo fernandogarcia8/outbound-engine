@@ -18,6 +18,7 @@ Supported placeholders in content strings:
 
 import os
 import gspread
+from gspread.http_client import BackOffHTTPClient
 from google.oauth2.service_account import Credentials
 
 TEMPLATES_TAB = "_templates"
@@ -33,7 +34,7 @@ def _spreadsheet(spreadsheet_id: str):
     if not creds_path:
         raise EnvironmentError("GOOGLE_SHEETS_CREDENTIALS_JSON not set")
     creds  = Credentials.from_service_account_file(creds_path, scopes=_SCOPES)
-    client = gspread.authorize(creds)
+    client = gspread.Client(auth=creds, http_client=BackOffHTTPClient)
     return client.open_by_key(spreadsheet_id)
 
 

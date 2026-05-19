@@ -6,6 +6,7 @@ The service account email must be added as an Editor on any sheet you want to us
 import os
 
 import gspread
+from gspread.http_client import BackOffHTTPClient
 from gspread.utils import rowcol_to_a1
 from google.oauth2.service_account import Credentials
 from dotenv import load_dotenv
@@ -28,7 +29,7 @@ class SheetsConnector:
             )
 
         creds  = Credentials.from_service_account_file(credentials_path, scopes=SCOPES)
-        client = gspread.authorize(creds)
+        client = gspread.Client(auth=creds, http_client=BackOffHTTPClient)
 
         self._sheet = client.open_by_key(spreadsheet_id).worksheet(sheet_name)
 
