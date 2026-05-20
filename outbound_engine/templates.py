@@ -19,6 +19,19 @@ def _greeting(row: dict) -> str:
     return f"Hi {first_name}," if first_name else "Hi there,"
 
 
+def _location(row: dict, market: str) -> str:
+    """
+    Returns the most specific location string available for this row.
+    Prospects use the 'Location' column; funnel rows use 'BOAT_CITY'.
+    Falls back to market (DMA name) if neither is populated.
+    """
+    for col in ("Location", "BOAT_CITY"):
+        val = (row.get(col) or "").strip()
+        if val:
+            return val
+    return market
+
+
 def _boat_noun(count: int) -> str:
     """Returns the right noun based on how many boats the owner has."""
     if count >= 3:
@@ -648,6 +661,7 @@ def get_messages(
 
     greeting   = _greeting(row)
     boat_count = int(row.get("_boat_count") or 1)
+    location   = _location(row, market)
 
     # Compute segment key used for override lookup
     if segment == "reactivate":
@@ -663,33 +677,33 @@ def get_messages(
     if touch == 1:
         if segment == "reactivate" and variant == "recent":
             result = _reactivate_recent(
-                greeting=greeting, market=market, assignee_name=assignee_name,
+                greeting=greeting, market=location, assignee_name=assignee_name,
                 boat_count=boat_count, row=row,
             )
         elif segment == "cross_list" and variant == "gmb":
             result = _cross_list_gmb(
-                greeting=greeting, market=market, assignee_name=assignee_name,
+                greeting=greeting, market=location, assignee_name=assignee_name,
                 boat_count=boat_count, row=row,
             )
         else:
             result = _TOUCH1_BUILDERS[segment](
-                greeting=greeting, market=market, assignee_name=assignee_name,
+                greeting=greeting, market=location, assignee_name=assignee_name,
                 boat_count=boat_count, row=row,
             )
     elif segment == "cross_list":
         if variant == "gmb":
             result = _cross_list_gmb_followup(
-                greeting=greeting, market=market, assignee_name=assignee_name, touch=touch, row=row,
+                greeting=greeting, market=location, assignee_name=assignee_name, touch=touch, row=row,
             )
         else:
             result = _cross_list_bs_followup(
-                greeting=greeting, market=market, assignee_name=assignee_name, touch=touch, row=row,
+                greeting=greeting, market=location, assignee_name=assignee_name, touch=touch, row=row,
             )
     elif segment == "prospect":
-        result = _casey_followup(greeting=greeting, market=market, touch=touch, row=row)
+        result = _casey_followup(greeting=greeting, market=location, touch=touch, row=row)
     else:
         result = _bs_followup(
-            greeting=greeting, market=market, touch=touch, assignee_name=assignee_name
+            greeting=greeting, market=location, touch=touch, assignee_name=assignee_name
         )
 
     # Apply market-specific overrides (field by field — partial overrides are supported)
@@ -697,7 +711,7 @@ def get_messages(
         charter_name = (row.get("Charter Name") or "").strip()
         subs = {
             "greeting":     greeting,
-            "market":       market,
+            "market":       location,
             "rep":          assignee_name,
             "boat_noun":    _boat_noun(boat_count),
             "charter_name": charter_name,
