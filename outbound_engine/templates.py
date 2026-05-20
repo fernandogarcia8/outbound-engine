@@ -23,11 +23,17 @@ def _location(row: dict, market: str) -> str:
     """
     Returns the most specific location string available for this row.
     Prospects use the 'Location' column; funnel rows use 'BOAT_CITY'.
+    Strips trailing state abbreviation ("Savannah, GA" → "Savannah").
     Falls back to market (DMA name) if neither is populated.
     """
     for col in ("Location", "BOAT_CITY"):
         val = (row.get(col) or "").strip()
         if val:
+            # Strip ", ST" suffix if present (e.g. "Savannah, GA" → "Savannah")
+            if ", " in val:
+                city, state = val.rsplit(", ", 1)
+                if len(state) == 2 and state.isalpha():
+                    val = city
             return val
     return market
 
