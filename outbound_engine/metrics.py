@@ -2,12 +2,12 @@
 Aggregates outreach metrics across all markets and tabs.
 Deduplicates by owner email/phone — fleet owners count once.
 Filters out test rows (Notes = "test").
+Scans all worksheets automatically — handles custom tab names.
 """
 
 import os
 import gspread
 from gspread.http_client import BackOffHTTPClient
-from gspread.exceptions import WorksheetNotFound
 from google.oauth2.service_account import Credentials
 
 _SCOPES = [
@@ -21,18 +21,18 @@ _TOUCH_COLS = [
     (3, "Email 3", "SMS 3"),
 ]
 
-# (tab_key, email_col, phone_col)
-_TABS = [
-    ("bs_live",     "OWNER_EMAIL",   "OWNER_PHONE_NUMBER"),
-    ("gmb_live",    "OWNER_EMAIL",   "OWNER_PHONE_NUMBER"),
-    ("bs_not_live", "OWNER_EMAIL",   "OWNER_PHONE_NUMBER"),
-    ("prospects",   "Email",         "Phone Number"),
-]
+# Candidate columns for owner identification, tried in priority order
+_EMAIL_CANDIDATES = ["OWNER_EMAIL", "Email"]
+_PHONE_CANDIDATES = ["OWNER_PHONE_NUMBER", "Phone Number", "Phone"]
 
 # Normalize known capitalization inconsistencies across sheets
 _NORMALIZE_STATUS = {
     "Not interested": "Not Interested",
 }
+
+# Skip tabs by prefix or exact name — non-outreach data
+_SKIP_PREFIXES = ("_",)
+_SKIP_NAMES    = {"SQL", "Segments", "Schedule", "Kustomer ID", "Warm Leads"}
 
 
 def _open_client():
@@ -66,7 +66,7 @@ def _merge(a: dict, b: dict) -> dict:
     }
 
 
-def _aggregate_tab(rows: list[dict], email_col: str, phone_col: str) -> dict:
+def _aggregate_tab(rows: list[dict], email_col: str | None, phone_col: str | None) -> dict:
     seen   = set()
     result = _empty()
 
@@ -74,8 +74,8 @@ def _aggregate_tab(rows: list[dict], email_col: str, phone_col: str) -> dict:
         if str(row.get("Notes", "") or "").strip().lower() == "test":
             continue
 
-        email = str(row.get(email_col, "") or "").strip().lower()
-        phone = str(row.get(phone_col, "") or "").strip()
+        email = str(row.get(email_col, "") or "").strip().lower() if email_col else ""
+        phone = str(row.get(phone_col, "") or "").strip()         if phone_col else ""
         key   = email if email else phone
         if not key or key in seen:
             continue
@@ -104,6 +104,38 @@ def _aggregate_tab(rows: list[dict], email_col: str, phone_col: str) -> dict:
     return result
 
 
+def _try_aggregate_worksheet(ws) -> dict | None:
+    """
+    Reads a worksheet, auto-detects owner ID columns, and returns aggregated metrics.
+    Returns None if the tab should be skipped (utility tab, no touch columns, no ID columns).
+    """
+    name = ws.title
+    if any(name.startswith(p) for p in _SKIP_PREFIXES) or name in _SKIP_NAMES:
+        return None
+
+    try:
+        rows = ws.get_all_records()
+    except Exception:
+        return None
+
+    if not rows:
+        return None
+
+    headers = set(rows[0].keys())
+
+    # Only process tabs that have at least one touch timestamp column
+    if not any(c in headers for c in ["Email 1", "SMS 1"]):
+        return None
+
+    email_col = next((c for c in _EMAIL_CANDIDATES if c in headers), None)
+    phone_col = next((c for c in _PHONE_CANDIDATES if c in headers), None)
+
+    if not email_col and not phone_col:
+        return None
+
+    return _aggregate_tab(rows, email_col, phone_col)
+
+
 def load_all_metrics(markets: dict) -> dict:
     """
     Reads all market sheets and returns:
@@ -120,9 +152,8 @@ def load_all_metrics(markets: dict) -> dict:
     per_market = {}
 
     for market_key, market in markets.items():
-        sheet_id   = market["sheet_id"]
-        tab_config = market.get("sheets", {})
-        mkt_agg    = _empty()
+        sheet_id = market["sheet_id"]
+        mkt_agg  = _empty()
 
         try:
             ss = client.open_by_key(sheet_id)
@@ -130,19 +161,10 @@ def load_all_metrics(markets: dict) -> dict:
             per_market[market_key] = {"display_name": market["display_name"], **mkt_agg}
             continue
 
-        for tab_key, email_col, phone_col in _TABS:
-            tab_name = tab_config.get(tab_key)
-            if not tab_name:
-                continue
-            try:
-                ws      = ss.worksheet(tab_name)
-                rows    = ws.get_all_records()
-                tab_agg = _aggregate_tab(rows, email_col, phone_col)
+        for ws in ss.worksheets():
+            tab_agg = _try_aggregate_worksheet(ws)
+            if tab_agg is not None:
                 mkt_agg = _merge(mkt_agg, tab_agg)
-            except WorksheetNotFound:
-                continue
-            except Exception:
-                continue
 
         per_market[market_key] = {"display_name": market["display_name"], **mkt_agg}
         overall = _merge(overall, mkt_agg)

@@ -22,8 +22,8 @@ A Python + Streamlit outreach engine for Boatsetter's supply team. Reads boat ow
 11. [Test Mode](#test-mode)
 12. [Cross-List Detection](#cross-list-detection)
 13. [BS - Not Live Classification](#bs---not-live-classification)
-14. [Configuration](#configuration)
-15. [Active Markets](#active-markets)
+14. [Metrics Dashboard](#metrics-dashboard)
+15. [Configuration](#configuration)
 16. [What's Working / Pending](#whats-working--pending)
 
 ---
@@ -49,6 +49,7 @@ A Python + Streamlit outreach engine for Boatsetter's supply team. Reads boat ow
     ├── classify_not_live.py      ← Assigns Tier + Action + Contact Status
     ├── seed_test_rows.py         ← Seeds team members as test rows (per-person selection)
     ├── template_store.py         ← Loads/saves per-market template overrides from _templates tab
+    ├── metrics.py                ← Aggregates outreach metrics across all markets/tabs
     ├── market_discovery.py       ← Scans Drive folder, resolves shortcuts
     ├── round_robin.py            ← Tyler ↔ Fernando assignment, persisted to JSON
     ├── logger.py                 ← File logger + RunSummary
@@ -75,9 +76,11 @@ templates.py    round_robin.py (assign rep)
 Kustomer API (create customer → create conversation → send email/SMS)
       ↓
 Google Sheets (write timestamps, Kustomer ID, conversation link)
+      ↓
+metrics.py (reads all sheets → aggregates T1/T2/T3 × email/SMS per market)
 ```
 
-**Streamlit app (`app.py`)** wraps the entire pipeline in a web UI. The app runs on Streamlit Cloud and reads secrets from the Streamlit secrets manager (locally it falls back to `.env`).
+**Streamlit app (`app.py`)** wraps the entire pipeline in a web UI with five tabs: Setup · Prep · Outreach · Messaging · Metrics. The app runs on Streamlit Cloud and reads secrets from the Streamlit secrets manager (locally it falls back to `.env`).
 
 ---
 
@@ -153,10 +156,10 @@ Each phase runs a 3-touch sequence. The engine determines which touch each conta
 | Touch | Label | Condition |
 |---|---|---|
 | Touch 1 | Initial | `Contact Status = Pending Outreach`, no prior sends |
-| Touch 2 | Follow-up 1 | `Contact Status = Contacted`, Touch 1 sent ≥ 2 days ago, no reply |
-| Touch 3 | Follow-up 2 | `Contact Status = Contacted`, Touch 2 sent ≥ 2 days ago, no reply |
+| Touch 2 | Follow-up 1 | `Contact Status = Contacted`, T1 timestamp exists, no T2 yet, no reply |
+| Touch 3 | Follow-up 2 | `Contact Status = Contacted`, T2 timestamp exists, no T3 yet, no reply |
 
-In the web app, each phase shows three rows (Initial / Follow-up 1 / Follow-up 2) with separate Dry Run and Send buttons. All call the same `run_campaign()` — the engine automatically selects the right touch per contact.
+There is no minimum time gap between touches — run follow-ups whenever you're ready. The web app shows three rows (Initial / Follow-up 1 / Follow-up 2) per phase with separate Dry Run and Send buttons. All call the same `run_campaign()` — the engine selects the right touch per contact automatically.
 
 A contact is skipped entirely if `Replied? = true`.
 
@@ -290,6 +293,10 @@ Auto-generated per run: `outbound_engine` + `supply_acq_<market_snake_case>`
 
 **Important:** Phone numbers from `get_all_records()` come back as integers — always `str()` cast before use. `append_row()` uses `value_input_option="RAW"` to prevent Sheets from interpreting `+` prefixes as formula operators.
 
+**Rate limiting:** `SheetsConnector` uses `BackOffHTTPClient` (gspread 6.x), which auto-retries on 429s with exponential backoff. No manual retry logic needed.
+
+**Fleet owners:** `update_row` matches by `OWNER_EMAIL` (fallback `OWNER_PHONE_NUMBER`) and updates every row sharing that owner in a single batch call — timestamps, Contact Status, and Kustomer link stay in sync across all of an owner's boats automatically.
+
 ### Columns written during outreach
 
 | Column | Written when |
@@ -373,12 +380,34 @@ The `Reactivate` action uses a `recent` message variant when `BOAT_LISTING_LAST_
 
 ---
 
+## Metrics Dashboard
+
+The **📊 Metrics** tab (5th tab in the web app) aggregates outreach performance across all markets. Data is read directly from the sheets, cached for 30 minutes, with a manual Refresh button.
+
+### What it shows
+
+- **Overall cards** — Emails Sent, SMS Sent, Owners Contacted, Reply Rate
+- **Touch breakdown table** — T1 / T2 / T3 × email / SMS counts
+- **Contact Status distribution** — across all markets combined
+- **Per-market table** — Emails, SMS, Contacted, Interested, Wins, Replied, Reply Rate per market
+
+### How it works
+
+- Reads `Email 1` / `SMS 1` / `Email 2` / `SMS 2` / `Email 3` / `SMS 3` columns across all tabs
+- Deduplicates by owner email/phone — fleet owners count once regardless of boat count
+- Filters out test rows (`Notes = "test"`)
+- Normalizes minor Contact Status casing inconsistencies
+- Numbers are totals across **all markets combined** — not per-market in the top cards
+
+**Reply Rate** requires manually toggling `Replied?` to `TRUE` in the sheet when an owner responds in Kustomer. Everything else updates automatically.
+
+---
+
 ## Configuration
 
 `config.py` — central config file. Key settings:
 
 ```python
-TOUCH_GAP_DAYS = 2             # days between outreach touches
 REACTIVATE_RECENT_DAYS = 90    # days threshold for "recent" reactivate variant
 
 TEAM_MEMBERS = [
@@ -386,6 +415,8 @@ TEAM_MEMBERS = [
     {"name": "Fernando", "kustomer_id": "...", "email": "fernando@boatsetter.com", "phone": "+528116892533"},
 ]
 ```
+
+**`REACTIVATE_RECENT_DAYS`** — contacts whose listing was last live within this many days get the "recently inactive" reactivate message variant (higher urgency). Default: 90.
 
 **To add a team member:** append to `TEAM_MEMBERS` with their `name`, `kustomer_id`, `email`, and `phone`.
 
@@ -408,38 +439,29 @@ TEAM_MEMBERS = [
 
 ---
 
-## Active Markets
-
-| Market | Sheet name | Status |
-|---|---|---|
-| **Savannah** | `Savannah - Outbound` | All test runs done. Live outreach not yet fired. 11 cross-list targets, 35 BS-Not-Live, 34 prospects. |
-| **Houston** | `Houston and nearby - Outbound` | Prep done. Outreach not fired. |
-| **Orlando** | `Orlando Prospecting` | In Drive folder. Empty/fresh — no prep or outreach yet. |
-
----
-
 ## What's Working / Pending
 
 ### Working
 
-- Google Sheets connection + market auto-discovery from Drive (handles shortcuts)
-- Streamlit web app — live at https://supply-outbound-engine.streamlit.app
-- CLI controller (`prep`, `outreach`, `scrape` commands)
-- Cross-list detection (6 layers including name matching)
-- Prep pipeline (split → classify → detect) with colored dropdowns
-- Engine: all segments, 3-touch sequence, 2-day gap enforcement
-- **Per-market message template overrides** — Messaging tab in the web app, stored in `_templates` Sheet tab
-- Test mode with per-person seed selection (idempotent)
-- Round-robin rep assignment, persisted in `round_robin_state.json`
-- Confirmation gate before live sends
-- Independent email/SMS error handling
-- Deduplication by owner, boat noun scaling (boat/boats/fleet)
-- Prospect templates — fishing / rental / charter variants
+- Google Sheets connection + market auto-discovery from Drive (handles shortcuts) ✅
+- Streamlit web app — live at https://supply-outbound-engine.streamlit.app ✅
+- CLI controller (`prep`, `outreach`, `scrape` commands) ✅
+- Cross-list detection (6 layers including name matching) ✅
+- Prep pipeline (split → classify → detect) with colored dropdowns ✅
+- Engine: all segments, 3-touch sequence (no minimum gap between touches) ✅
+- **Fleet owner deduplication** — one message per owner, all matching rows updated in one batch call ✅
+- **Rate limiting** — BackOffHTTPClient auto-retries on 429s; no mid-run crashes ✅
+- **Skip option** on all tabs — set Action to "Skip" to exclude any row from all outreach ✅
+- **Per-market message template overrides** — Messaging tab, stored in `_templates` Sheet tab ✅
+- **Metrics dashboard** — 5th tab, aggregates T1/T2/T3 × email/SMS across all markets, 30-min cache ✅
+- Test mode with per-person seed selection (idempotent, reports existing row number) ✅
+- Round-robin rep assignment, persisted in `round_robin_state.json` ✅
+- Confirmation gate before live sends ✅
+- Independent email/SMS error handling ✅
+- Prospect templates — fishing / rental / charter variants, no em dashes ✅
 
-### Pending / Not Yet Built
+### Not Yet Built
 
-1. **Fire live Savannah outreach** — all validation done, ready
-2. **Prospect scraping automation** — currently manual via `/boat-charter-prospector` skill in Claude Code; automating via Anthropic API + search API discussed but not built
-3. **Funnel detection for Prospects tab** — cross-reference scraped operators against existing BS/GMB sheets before outreach (discussed, not built)
-4. **BS - Churn outreach** — no process yet; opportunity in `pending_insurance`, `deactivated`, `deleted`
-5. **Orlando** — needs raw Snowflake data + prep before outreach
+- **Prospect scraping automation** — currently manual via `/boat-charter-prospector` skill in Claude Code
+- **Funnel detection for Prospects tab** — no cross-reference against existing BS/GMB contacts before Phase 3 outreach
+- **BS - Churn outreach** — no process yet; opportunity in `pending_insurance`, `deactivated`, `deleted`

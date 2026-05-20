@@ -71,9 +71,6 @@ COL_SMS_2   = "SMS 2"
 COL_EMAIL_3 = "Email 3"
 COL_SMS_3   = "SMS 3"
 
-# Days between outreach touches
-TOUCH_GAP_DAYS = 2
-
 # Days since last live below which we use the "recently inactive" reactivate message
 REACTIVATE_RECENT_DAYS = 90
 

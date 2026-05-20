@@ -4,11 +4,9 @@ and which touch number (1, 2, or 3) should be sent next.
 
 Touch rules:
   Touch 1 — Contact Status = "Pending Outreach", no prior sends
-  Touch 2 — Status = "Contacted", Touch 1 sent, >= TOUCH_GAP_DAYS ago, no reply
-  Touch 3 — Status = "Contacted", Touch 2 sent, >= TOUCH_GAP_DAYS ago, no reply
+  Touch 2 — Status = "Contacted", Touch 1 sent, no reply
+  Touch 3 — Status = "Contacted", Touch 2 sent, no reply
 """
-
-from datetime import datetime
 
 from config import (
     COL_OWNER_EMAIL,
@@ -23,7 +21,6 @@ from config import (
     COL_EMAIL_3,
     COL_SMS_3,
     SEGMENT_ACTIONS,
-    TOUCH_GAP_DAYS,
 )
 
 
@@ -33,18 +30,6 @@ def has_email(row: dict) -> bool:
 
 def has_phone(row: dict) -> bool:
     return bool(str(row.get(COL_OWNER_PHONE) or "").strip())
-
-
-def _days_since(timestamp_str: str) -> float:
-    """Returns fractional days elapsed since a date or ISO 8601 timestamp (UTC)."""
-    s = (timestamp_str or "").strip()
-    for fmt in ("%Y-%m-%d", "%Y-%m-%dT%H:%M:%SZ"):
-        try:
-            ts = datetime.strptime(s, fmt)
-            return (datetime.utcnow() - ts).total_seconds() / 86400
-        except ValueError:
-            continue
-    return 0.0
 
 
 def get_touch_for_row(row: dict, segment: str) -> int | None:
@@ -76,10 +61,10 @@ def get_touch_for_row(row: dict, segment: str) -> int | None:
         t2_ts = email2 or sms2
 
         if t1_ts and not email2 and not sms2:
-            return 2 if _days_since(t1_ts) >= TOUCH_GAP_DAYS else None
+            return 2
 
         if t2_ts and not email3 and not sms3:
-            return 3 if _days_since(t2_ts) >= TOUCH_GAP_DAYS else None
+            return 3
 
     return None
 

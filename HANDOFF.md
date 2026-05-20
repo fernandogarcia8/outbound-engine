@@ -90,6 +90,22 @@ Prep runs three steps in sequence:
 
 ---
 
+## Multi-touch sequence
+
+Each phase supports three touches (Initial → Follow-up 1 → Follow-up 2). The web app shows three buttons per phase; each button runs the full engine and the engine decides which touch each contact gets based on their current state:
+
+| Touch | Condition |
+|---|---|
+| Touch 1 | Contact Status = "Pending Outreach", no prior sends |
+| Touch 2 | Status = "Contacted", Email 1 or SMS 1 has a timestamp, no T2 sent yet, no reply |
+| Touch 3 | Status = "Contacted", Email 2 or SMS 2 has a timestamp, no T3 sent yet, no reply |
+
+**No minimum time gap between touches.** You control timing by deciding when to click Follow-up 1 / Follow-up 2. Run them whenever you're ready — the next day or a week later.
+
+Timestamps are written back to the sheet in `Email 1` / `SMS 1` / `Email 2` / `SMS 2` / `Email 3` / `SMS 3` columns.
+
+---
+
 ## Market naming convention
 
 The Google Sheet name controls what appears in message copy. Whatever comes before `- Outbound` is used as the market name in templates.
@@ -124,7 +140,7 @@ Note: If you move an existing file into the folder, Drive creates a shortcut. Th
 
 All outreach runs support a test mode that filters to rows where `Notes = "test"`.
 
-In test mode, eligibility and touch-timing checks are **bypassed entirely** — test contacts always receive Touch 1 regardless of prior send history. Deduplication still runs — if an owner has multiple test rows, they get one message with the correct noun (boat / boats / fleet).
+In test mode, eligibility checks are **bypassed entirely** — test contacts always receive Touch 1 regardless of prior send history. Deduplication still runs — if an owner has multiple test rows, they get one message with the correct noun (boat / boats / fleet).
 
 **Seeding test rows (web app):**
 1. Toggle "Test contacts only" on in the sidebar
@@ -132,7 +148,7 @@ In test mode, eligibility and touch-timing checks are **bypassed entirely** — 
 3. Click **Seed test rows** — adds Tyler and Fernando to all sheet tabs automatically
    - BS - Not Live: Tyler → Reactivate, Fernando → Get Live (tests both variants)
    - All other tabs: both → Cross-List or Prospect
-4. Idempotent — skips tabs where they already exist, now reports **row number** of the existing row so you can find/verify it in the sheet
+4. Idempotent — skips tabs where they already exist, reports row number of the existing row
 
 **Kustomer ID in test rows:** Left blank when seeded. The engine looks up and fills it at send time via `get_or_create_customer()`.
 
@@ -141,7 +157,7 @@ In test mode, eligibility and touch-timing checks are **bypassed entirely** — 
 python controller.py outreach --market savannah --phase 1 --test
 ```
 
-**Confirmation gate (web app):** Live sends require a second confirmation click after "Send Phase X". Dry runs skip this.
+**Confirmation gate (web app):** Live sends require a second confirmation click. Dry runs skip this.
 
 ---
 
@@ -160,8 +176,8 @@ python controller.py outreach --market savannah --phase 1 --test
 - Rows matched on `OWNER_EMAIL` first, fallback `OWNER_PHONE_NUMBER`
 - Date written to sheet: `YYYY-MM-DD`
 - Prospect sheets use different column names (`Email`, `Phone Number`, `Owner Name`) — normalized automatically via `SEGMENT_COLUMN_OVERRIDES` in `config.py`
-- **Rate limiting:** `SheetsConnector` and `template_store` both use `BackOffHTTPClient` (gspread 6.x) which auto-retries on 429s with exponential backoff. No more crashes mid-run.
-- **Fleet owners:** `update_row` updates ALL rows matching the owner's email/phone in a single batch call — Contact Status, timestamps, Kustomer link all stay in sync across every boat row.
+- **Rate limiting:** `SheetsConnector` and `template_store` both use `BackOffHTTPClient` (gspread 6.x) which auto-retries on 429s with exponential backoff
+- **Fleet owners:** `update_row` updates ALL rows matching the owner's email/phone in a single batch call — Contact Status, timestamps, Kustomer link all stay in sync across every boat row
 
 ### Team members (config.py) — Tyler + Fernando only (Casey is prospect alias only)
 ```python
@@ -197,7 +213,7 @@ Prep also adds outreach tracking columns and colored dropdowns to both Live tabs
 
 ## Skip option (all tabs)
 
-Every "Action to take" dropdown now includes a **Skip** option (gray). Setting a row to Skip excludes it from all outreach — the engine only processes rows whose action exactly matches the segment (Cross-List / Reactivate / Get Live / Prospect).
+Every "Action to take" dropdown includes a **Skip** option (gray). Setting a row to Skip excludes it from all outreach — the engine only processes rows whose action exactly matches the segment (Cross-List / Reactivate / Get Live / Prospect).
 
 | Tab | When Skip dropdown appears |
 |---|---|
@@ -209,17 +225,17 @@ Every "Action to take" dropdown now includes a **Skip** option (gray). Setting a
 
 ## Per-market template overrides (template_store.py + ✏️ Messaging tab)
 
-The web app has a **Messaging** tab (4th tab) that lets you edit copy per market. On save, overrides are written to a `_templates` tab in the market's Google Sheet (auto-created). The engine loads these at campaign start and applies them field by field — unoverridden fields fall back to the hardcoded defaults in `templates.py`. No behavior change for markets with no overrides.
+The web app has a **Messaging** tab (4th tab) that lets you edit copy per market. On save, overrides are written to a `_templates` tab in the market's Google Sheet (auto-created). The engine loads these at campaign start and applies them field by field — unoverridden fields fall back to the hardcoded defaults in `templates.py`.
 
 Supported placeholders: `{greeting}` · `{market}` · `{rep}` · `{boat_noun}` · `{charter_name}` · `{name_ref}` · `{activity_ref}`
 
-**Important:** Saved overrides in `_templates` are independent of code changes. If you update copy in `templates.py`, any market with a saved override for that template will still show the old text — you must update the override manually in the Messaging tab.
+**Important:** Saved overrides in `_templates` are independent of code changes. If you update copy in `templates.py`, any market with a saved override for that template will still show the old text — update the override manually in the Messaging tab.
 
 ---
 
 ## Metrics tab (📊 Metrics)
 
-The 5th tab in the web app aggregates outreach performance across all markets. Data is read directly from the sheets, cached for 30 min, with a manual Refresh button.
+The 5th tab aggregates outreach performance across all markets. Data is read directly from the sheets, cached 30 min, with a manual Refresh button.
 
 **What it shows:**
 - Overall: Emails Sent, SMS Sent, Owners Contacted, Reply Rate
@@ -230,29 +246,20 @@ The 5th tab in the web app aggregates outreach performance across all markets. D
 **How it works:**
 - Deduplicates by owner email/phone — fleet owners count once regardless of boat count
 - Filters out test rows (`Notes = "test"`)
-- Normalizes minor status casing differences (e.g. "Not interested" → "Not Interested")
+- Normalizes minor status casing differences
+- Counts T1 from `Email 1` / `SMS 1`, T2 from `Email 2` / `SMS 2`, T3 from `Email 3` / `SMS 3`
+- Numbers shown are totals across ALL markets combined
 
 **Reply Rate** requires manually toggling `Replied?` to `TRUE` in the sheet when an owner responds in Kustomer. Everything else is automatic.
-
-**Touch 2 ≠ Phase 2.** Touch 2 means the second follow-up message to the same person (sent 2+ days after Touch 1). When you re-run a phase to pick up contacts missed due to a crash, the engine also automatically sends Touch 2 to any contacts from that phase who were first contacted 2+ days earlier and haven't replied. This is by design.
-
----
-
-## Test mode — per-person seeding
-
-In the Test Setup section (Outreach tab, test mode on), a multiselect lets you choose which team members to seed (defaults to all). Action assignments in BS - Not Live (Tyler → Reactivate, Fernando → Get Live) are fixed per person regardless of who is selected.
-
-To test individually without re-seeding: just clear the `Notes = "test"` value from the other person's row in the sheet — the engine skips any row where Notes ≠ "test".
 
 ---
 
 ## Templates (templates.py)
 
 ### No em dashes anywhere in user-facing copy
-All em dashes were removed — they signal AI-generated content. Use periods or plain hyphens instead.
+All em dashes removed — they signal AI-generated content. Use periods or plain hyphens instead.
 
 ### Brand name: always "Getmyboat" (not "GetMyBoat")
-Three occurrences of "GetMyBoat" were corrected. If editing cross-list templates, use "Getmyboat" throughout.
 
 ### Prospect variants (auto-detected from `Type` column)
 | Variant | Trigger |
@@ -287,49 +294,6 @@ BS - Churn states (moved by split_not_live.py): `blocked`, `boatbound_denied`, `
 
 ---
 
-## Active markets
-
-### Savannah — "Savannah - Outbound" sheet
-Sheet ID: `1TXflgydfFvtd1GuMAfyO5UDopQ5lCD22AMpRusK6vlU`
-
-**Live outreach has been fired.**
-
-| Tab | Status |
-|---|---|
-| BS - Live | Phase 1 sent. T2 in progress (~13 contacts eligible, may have been sent). |
-| GMB - Live | 0 targets (all Dual Presence / Possible Dual Presence). |
-| BS - Not Live | Phase 2 sent (24 Reactivate + 11 Get Live). T2 eligible for contacts hit 2+ days ago. |
-| Prospects | 34 operators (28 GA / 6 SC). Phase 3 status unclear — confirm before re-running. |
-| BS - Churn | 202 rows. No outreach process yet. |
-
-**Note on T2:** When Phase 1/2 were re-run to recover from rate-limit crashes, the engine also sent T2 to contacts from Tyler's original run (which were 2+ days old). ~13 contacts received T2 as a result. This is correct behavior.
-
-### Houston — "Houston and nearby - Outbound" sheet
-Prep run complete. Outreach not yet fired.
-
-### Orlando — "Orlando Prospecting" sheet
-In Drive folder. Sheet is empty/fresh — no prep run yet.
-
----
-
-## What's pending / next steps
-
-1. **Savannah T2/T3 follow-ups** — check the Metrics tab to see current touch status. T2 is already in progress. T3 will become eligible 2 days after T2.
-
-2. **Savannah Phase 3 (Prospects)** — confirm whether Phase 3 was fired. 34 operators ready.
-
-3. **Houston outreach** — prep complete, ready to fire.
-
-4. **Prospect scraping automation** — currently manual via `/boat-charter-prospector` skill in Claude Code. Discussed but not built.
-
-5. **Funnel detection for Prospects tab** — cross-reference scraped operators against BS - Live, GMB - Live, BS - Not Live, BS - Churn before outreach. Discussed, not built yet.
-
-6. **BS - Churn outreach** — no process yet. Opportunity in `pending_insurance`, `deactivated`, `deleted`.
-
-7. **Orlando market** — sheet is in Drive folder, needs raw data + prep before outreach.
-
----
-
 ## What's working
 
 - Google Sheets connection ✅
@@ -338,7 +302,7 @@ In Drive folder. Sheet is empty/fresh — no prep run yet.
 - `app.py` Streamlit web app ✅ — live at https://supply-outbound-engine.streamlit.app
 - `cross_list.py` 6-layer detection including name matching ✅
 - Cross-list prep adds outreach columns + colored dropdowns to BS-Live and GMB-Live ✅
-- `split_not_live.py` ✅ (handles `blocked` state → BS-Churn)
+- `split_not_live.py` ✅
 - `classify_not_live.py` ✅
 - `engine.py` all segments ✅
 - **Fleet owner deduplication** ✅ — one message per owner with correct noun (boat/boats/fleet); all matching rows updated in one batch call
@@ -346,11 +310,19 @@ In Drive folder. Sheet is empty/fresh — no prep run yet.
 - **Skip option on all tabs** ✅ — set Action to "Skip" to exclude any owner from outreach
 - **Per-market message template overrides** ✅ — Messaging tab, stored in `_templates` Sheet tab
 - **Metrics tab** ✅ — 5th tab, aggregates sends/replies/status across all markets, 30-min cache
-- Test mode (Notes="test", bypasses eligibility/timing) ✅
-- Seed test rows with per-person selection ✅ — now shows row number when contact already exists
+- **Multi-touch sequence** ✅ — no minimum time gap; T2/T3 eligible as soon as prior touch is sent
+- Test mode (Notes="test", bypasses eligibility checks) ✅
+- Seed test rows with per-person selection ✅ — shows row number when contact already exists
 - Confirmation gate before live sends ✅
 - Prospect templates — fishing / rental / charter variants, no em dashes ✅
 - Deduplication by owner, boat noun (boat/boats/fleet) ✅
 - Round-robin (Tyler + Fernando), persisted in `round_robin_state.json` ✅
 - Independent email/SMS error handling ✅
-- Multi-touch sequence (Touch 1/2/3, 2-day gap) ✅
+
+---
+
+## Known gaps / not yet built
+
+- **Prospect scraping automation** — currently manual via `/boat-charter-prospector` skill in Claude Code
+- **Funnel detection for Prospects tab** — no cross-reference against existing BS/GMB contacts before Phase 3 outreach
+- **BS - Churn outreach** — no process yet; opportunity in `pending_insurance`, `deactivated`, `deleted`

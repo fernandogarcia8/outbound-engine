@@ -51,6 +51,7 @@ from markets import get_markets
 from split_not_live import split_not_live
 from classify_not_live import classify_not_live
 from cross_list import detect_cross_list
+from prep_prospects import prep_prospects
 from engine import run_campaign
 from seed_test_rows import seed_test_rows
 from template_store import load_overrides, save_overrides
@@ -257,7 +258,7 @@ with tab_setup:
 # ══ TAB 2: Prep ════════════════════════════════════════════════════════════════
 
 with tab_prep:
-    st.markdown("### Prep")
+    st.markdown("### Funnel Prep")
     st.markdown(
         "Runs all detection and classification steps against the current sheet data. "
         "Run this once per new Snowflake export before triggering any outreach."
@@ -309,6 +310,54 @@ with tab_prep:
             st.info("Dry run complete — no changes written. Review the output, then click **Run Prep** to apply.")
         else:
             st.success(f"Prep complete for **{market_name}**. Review the sheet, then go to **Outreach**.")
+
+    st.divider()
+
+    st.markdown("### Prospects Prep")
+    st.markdown(
+        "Prepares only the **Prospects** tab. "
+        "Adds tracking columns, applies dropdowns, then cross-checks every prospect "
+        "against BS Live, GMB Live, BS Not Live, BS Churn, and Kustomer. "
+        "Matched rows get a **Funnel Status** tag and are flagged **Manual Check** "
+        "so you can review them before outreach. Net new rows stay as Prospect. "
+        "Safe to run after Phases 1 and 2 are already done."
+    )
+    st.markdown("")
+
+    col1p, col2p, _ = st.columns([1, 1, 3])
+    prep_p_dry  = col1p.button("Dry Run",       key="prep_prospects_dry")
+    prep_p_live = col2p.button("Run Prep",       key="prep_prospects_live", type="primary")
+
+    if prep_p_dry or prep_p_live:
+        dry = prep_p_dry
+        log_ph = st.empty()
+        cb     = make_log_runner(log_ph)
+
+        with st.status(f"{'[DRY RUN] ' if dry else ''}Prepping Prospects tab for {market_name}...", expanded=True) as status:
+            rp = prep_prospects(
+                sheet_id=sheet_id,
+                sheet_name=prospects,
+                bs_live_sheet=bs_live,
+                gmb_live_sheet=gmb_live,
+                bs_not_live_sheet=bs_not_live,
+                bs_churn_sheet=bs_churn,
+                dry_run=dry,
+                on_progress=cb,
+            )
+            status.update(label="Prospects prep complete!", state="complete")
+
+        if dry:
+            st.info(
+                f"Dry run complete — {rp['filled']} rows would be set up · "
+                f"{rp['net_new']} net new · {rp['matched']} already in funnel. "
+                f"Click **Run Prep** to apply."
+            )
+        else:
+            st.success(
+                f"Done: **{rp['net_new']} net new** prospects (clear to contact) · "
+                f"**{rp['matched']} already in funnel** (set to Manual Check — review before outreach). "
+                f"Go to **Outreach → Phase 3**."
+            )
 
 
 # ══ TAB 3: Outreach ════════════════════════════════════════════════════════════
@@ -382,8 +431,8 @@ with tab_outreach:
 
     touch_defs = [
         {"label": "Initial",      "note": "First outreach — send first",            "suffix": "t1"},
-        {"label": "Follow-up 1",  "note": "Re-run 2+ days after Initial",           "suffix": "t2"},
-        {"label": "Follow-up 2",  "note": "Re-run 2+ days after Follow-up 1",       "suffix": "t3"},
+        {"label": "Follow-up 1",  "note": "Send after Initial is complete",          "suffix": "t2"},
+        {"label": "Follow-up 2",  "note": "Send after Follow-up 1 is complete",     "suffix": "t3"},
     ]
 
     for phase in phases:
