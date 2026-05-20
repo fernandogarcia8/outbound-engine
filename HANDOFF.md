@@ -9,15 +9,16 @@
 ├── requirements.txt        ← Python dependencies (used by Streamlit Cloud)
 ├── .streamlit/config.toml  ← App theme (light blue)
 └── outbound_engine/
-    ├── engine.py
+    ├── engine.py           ← Core orchestrator + send_from_drafts()
     ├── cross_list.py
     ├── split_not_live.py
     ├── classify_not_live.py
     ├── prep_prospects.py   ← Prospects tab prep: columns, dropdowns + funnel detection
+    ├── draft_prospects.py  ← Generates Draft Subject/Email/SMS columns before Phase 3 send
     ├── seed_test_rows.py   ← Seeds team members as test rows (per-person selection)
     ├── template_store.py   ← Loads/saves per-market template overrides from _templates tab
     ├── market_discovery.py ← Drive folder scanner (handles shortcuts)
-    ├── templates.py
+    ├── templates.py        ← All message copy — prospect templates redesigned this session
     ├── segmentation.py
     ├── kustomer_client.py
     ├── sheets_connector.py
@@ -282,7 +283,7 @@ The 5th tab aggregates outreach performance across all markets. Data is read dir
 ## Templates (templates.py)
 
 ### No em dashes anywhere in user-facing copy
-All em dashes removed — they signal AI-generated content. Use periods or plain hyphens instead.
+All em dashes removed — they signal AI-generated content. Use `--` (double hyphen) instead.
 
 ### Brand name: always "Getmyboat" (not "GetMyBoat")
 
@@ -293,7 +294,12 @@ All em dashes removed — they signal AI-generated content. Use periods or plain
 | `rental` | Type contains "rental" or "sailboat" |
 | `charter` | Everything else (tours, eco, sunset, watersports, yacht) |
 
-Business name from `Charter Name` column is injected into prospect templates.
+### Prospect data helpers (new)
+- **`_activities(row)`** — formats `Activities/Events/Services` as "X, Y, and Z" (up to 3). Used in the activity observation line for all three variants.
+- **`_boat_ref(row)`** — extracts a specific boat type noun (catamaran, skiff, pontoon, sailboat, etc.) from `Boat Type`. Returns `""` for generic descriptions like "multi-vessel fleet" or "center console" so those never show up in copy.
+- **`_booking_context(row)`** — if `Booking Software` is a known platform (FareHarbor, Bookeo, Rezdy, etc.), returns one sentence positioning Boatsetter as an additive channel. Returns `""` for direct booking or unknown software.
+
+All three helpers are also exposed as `{activities}`, `{boat_type}` placeholders in the per-market template override system.
 
 ### Reactivate variants
 - `recent` — LAST_LIVE_ON_SITE_AT < 90 days ago
@@ -319,6 +325,35 @@ BS - Churn states (moved by split_not_live.py): `blocked`, `boatbound_denied`, `
 
 ---
 
+## Phase 3 — Prospect draft flow
+
+Phase 3 uses a review-before-send flow instead of the standard dry-run/send:
+
+```
+Generate Drafts → review + edit in Sheet → Send Drafts → Confirm
+```
+
+### Step 1 — Generate Drafts (`draft_prospects.py`)
+Reads all eligible prospect rows, calls `get_messages()` per row, and writes three columns to the Prospects tab:
+
+| Column | Contents |
+|---|---|
+| `Draft Subject` | Email subject line |
+| `Draft Email` | Full email body |
+| `Draft SMS` | Full SMS body |
+
+Nothing is sent. Drafts stay in the sheet permanently as a record after sending. Hide the columns in Sheets when they clutter the view (right-click → Hide column).
+
+### Step 2 — Review in Sheet
+Open the Prospects tab, read every draft. Edit any cell — fix an awkward activity string, adjust a sentence, add a personal line. Any cell you change is what gets sent.
+
+### Step 3 — Send Drafts (`engine.send_from_drafts()`)
+Reads rows where draft columns are populated and still eligible (same touch-timing as `run_campaign`). Sends exactly what is in the draft columns via Kustomer. Writes timestamps to `Email 1` / `SMS 1` etc. Does **not** clear the draft columns after sending.
+
+Rows without a draft are skipped. Re-generating drafts before a T2/T3 round overwrites the T1 drafts with follow-up copy — that is expected behavior.
+
+---
+
 ## What's working
 
 - Google Sheets connection ✅
@@ -339,11 +374,12 @@ BS - Churn states (moved by split_not_live.py): `blocked`, `boatbound_denied`, `
 - Test mode (Notes="test", bypasses eligibility checks) ✅
 - Seed test rows with per-person selection ✅ — shows row number when contact already exists
 - Confirmation gate before live sends ✅
-- Prospect templates — fishing / rental / charter variants, no em dashes ✅
 - Deduplication by owner, boat noun (boat/boats/fleet) ✅
 - Round-robin (Tyler + Fernando), persisted in `round_robin_state.json` ✅
 - Independent email/SMS error handling ✅
 - **Prospects Prep** ✅ — dedicated prep for Prospects tab only (safe post-Phase 1+2): column setup + 9-layer funnel detection, `Funnel Status` column, Manual Check for matched rows
+- **Prospect draft flow** ✅ — Generate Drafts writes to sheet, review/edit in Sheets, Send Drafts sends exactly what's written; permanent audit trail
+- **Sharp prospect templates** ✅ — activities (up to 3, formatted naturally), boat type (specific nouns only), booking software context (FareHarbor etc.), first name greeting from Owner Name
 
 ---
 
@@ -351,17 +387,4 @@ BS - Churn states (moved by split_not_live.py): `blocked`, `boatbound_denied`, `
 
 - **Prospect scraping automation** — currently manual via `/boat-charter-prospector` skill in Claude Code
 - **Prospects Prep re-run idempotency** — re-running overwrites `Funnel Status`/`Notes`/`Action` for matched rows even if manually reviewed; future fix: skip rows that already have a `Funnel Status`
-- **Prospect outreach personalization** — current templates are generic; next session should redesign prospect outreach to be sharper and data-driven using all scraped columns (business name, type, activity type, etc.). Cold outreach so every variable from the scrape should be leveraged
 - **BS - Churn outreach** — no process yet; opportunity in `pending_insurance`, `deactivated`, `deleted`
-
----
-
-## Next session: Prospect Outreach (Phase 3)
-
-The current prospect templates (`templates.py`) use only a handful of variables (`{charter_name}`, `{market}`, `{rep}`, `{name_ref}`, `{activity_ref}`). The prospecting skill scrapes significantly more data per business. The next session should:
-
-1. **Audit the Prospects sheet columns** — list every column the scraper outputs (business name, type, platform URLs, rating, review count, price, description, etc.)
-2. **Redesign the templates** — cold outreach needs to feel hand-written and specific. Reference the actual business, what they do, and why Boatsetter is a fit. Different tone from reactivation/cross-list copy
-3. **Add new placeholders** to `templates.py` and the Messaging tab override system
-4. **Consider variant logic** — fishing / rental / charter already exist, but may need sub-variants based on scraped signals (e.g. high-rated vs new listing, price point, review volume)
-5. **Signed as Casey** (prospect alias) — already correct, keep as-is

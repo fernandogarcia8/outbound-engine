@@ -48,6 +48,7 @@ A Python + Streamlit outreach engine for Boatsetter's supply team. Reads boat ow
     ├── split_not_live.py         ← Splits BS-Not-Live into actionable vs churn
     ├── classify_not_live.py      ← Assigns Tier + Action + Contact Status
     ├── prep_prospects.py         ← Prospects tab prep: columns, dropdowns + funnel detection
+    ├── draft_prospects.py        ← Generates Draft Subject/Email/SMS columns before Phase 3 send
     ├── seed_test_rows.py         ← Seeds team members as test rows (per-person selection)
     ├── template_store.py         ← Loads/saves per-market template overrides from _templates tab
     ├── metrics.py                ← Aggregates outreach metrics across all markets/tabs
@@ -206,7 +207,7 @@ See [Cross-List Detection](#cross-list-detection) for full detail.
 
 #### Step 1 — Column setup
 
-Ensures tracking columns exist (`Funnel Status`, `Action to take`, `Contact Status`, `Replied?`, `Email 1/2/3`, `SMS 1/2/3`, `Kustomer ID`, link, `Notes`). Sets `Action to take = "Prospect"` and `Contact Status = "Pending Outreach"` for new rows only. Applies color-coded dropdowns.
+Ensures tracking columns exist (`Funnel Status`, `Action to take`, `Contact Status`, `Replied?`, `Draft Subject`, `Draft Email`, `Draft SMS`, `Email 1/2/3`, `SMS 1/2/3`, `Kustomer ID`, link, `Notes`). Sets `Action to take = "Prospect"` and `Contact Status = "Pending Outreach"` for new rows only. Applies color-coded dropdowns.
 
 #### Step 2 — Funnel detection
 
@@ -224,6 +225,22 @@ Cross-checks every prospect against all funnel tabs and Kustomer. Writes a `Funn
 **Net New** rows → Action stays `Prospect`, ready for outreach.
 **Matched** rows → Action flipped to `Manual Check`, review before contacting.
 **Skip** rows → never overwritten regardless of detection result.
+
+---
+
+### Phase 3 Outreach — draft flow
+
+Phase 3 (Prospects) uses a review-before-send flow instead of the standard dry-run/send:
+
+```
+Generate Drafts → review + edit in Sheet → Send Drafts → Confirm
+```
+
+**Generate Drafts** (`draft_prospects.py`) — reads all eligible rows, generates messages using the same template logic as a live send, and writes three columns to the Prospects tab: `Draft Subject`, `Draft Email`, `Draft SMS`. Nothing is sent.
+
+**Review in Sheet** — open the Prospects tab, read every draft, edit any cell. Bad activity string? Fix it inline. Want to add a personal line? Go ahead. The send step uses exactly what's in those cells.
+
+**Send Drafts** (`engine.send_from_drafts()`) — reads the draft columns, sends via Kustomer, writes timestamps to `Email 1` / `SMS 1` etc. Draft columns are kept after sending as a permanent record of what went out. Hide them in Sheets when they clutter the view (right-click column → Hide).
 
 ---
 
@@ -258,6 +275,8 @@ Supported placeholders in override text:
 | `{rep}` | Rep name or "Casey" for prospects |
 | `{boat_noun}` | "your boat" / "your boats" / "your fleet" |
 | `{charter_name}` | Business name (prospect templates) |
+| `{activities}` | Top 3 activities joined naturally: "inshore, offshore, and shark fishing" |
+| `{boat_type}` | Specific vessel noun if available: "catamaran", "skiff", "pontoon" — empty for generic types |
 | `{name_ref}` | "I came across X" or "I came across your operation" |
 | `{activity_ref}` | ", including fishing trips," or "" |
 
@@ -283,13 +302,18 @@ If no override exists for a market, the hardcoded defaults in `templates.py` are
 | `rental` | Type contains "rental" or "sailboat" |
 | `charter` | Everything else (tours, eco, sunset, watersports, yacht) |
 
-Business name from `Charter Name` column is injected into prospect templates.
+Prospect templates use the following Prospects sheet columns to personalize copy:
+- `Charter Name` — business name in opener and subject
+- `Owner Name` — split on first space for greeting ("Hi Judy,"); falls back to "Hi there,"
+- `Activities/Events/Services` — top 3 formatted naturally ("inshore, offshore, and shark fishing")
+- `Boat Type` — injected as a specific noun when meaningful ("your catamaran", "your skiff"); skipped for generic values like "multi-vessel fleet" or "center console"
+- `Booking Software` — if a known platform (FareHarbor, Bookeo, Rezdy, etc.), adds one sentence positioning Boatsetter as an additive channel
 
 ### Copy rules
 
-- No em dashes anywhere — they signal AI-generated content
+- No em dashes anywhere — use `--` instead; em dashes signal AI-generated content
 - Market name auto-injected from sheet name (strips `- Outbound` suffix)
-- Greeting auto-built from `OWNER_FIRST_NAME` column; falls back to "Hi there,"
+- Greeting auto-built from `Owner Name` column (prospect) or `OWNER_FIRST_NAME` (other segments); falls back to "Hi there,"
 
 ---
 
@@ -491,10 +515,11 @@ TEAM_MEMBERS = [
 - Confirmation gate before live sends ✅
 - Independent email/SMS error handling ✅
 - Prospect templates — fishing / rental / charter variants, no em dashes ✅
+- **Sharp prospect templates** — activities (up to 3, formatted naturally), boat type (specific nouns only, generic types skipped), booking software context for known platforms ✅
+- **Prospect draft flow** — Generate Drafts writes `Draft Subject` / `Draft Email` / `Draft SMS` to Prospects tab; review + edit in Sheet; Send Drafts sends exactly what's written; draft columns kept as permanent send record ✅
 
 ### Not Yet Built
 
 - **Prospect scraping automation** — currently manual via `/boat-charter-prospector` skill in Claude Code
-- **Prospect outreach personalization** — current templates use only a few variables; next session will redesign Phase 3 copy to be sharper and leverage all scraped columns (business name, type, activity, platform URLs, etc.). Cold outreach requires a different, more specific tone than reactivation/cross-list
 - **Prospects Prep re-run idempotency** — re-running overwrites matched rows even if manually reviewed; future fix: skip rows that already have a `Funnel Status`
 - **BS - Churn outreach** — no process yet; opportunity in `pending_insurance`, `deactivated`, `deleted`
