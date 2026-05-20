@@ -208,6 +208,18 @@ def _booking_context(row: dict) -> str:
     return ""
 
 
+def _in_loc(name: str, location: str) -> str:
+    """
+    Returns ' in {location}' unless the location is already evident from the
+    business name -- avoids 'Tybee Island Watersports in Tybee Island'.
+    """
+    if not location:
+        return ""
+    if location.lower() in name.lower():
+        return ""
+    return f" in {location}"
+
+
 def _prospect(greeting: str, market: str, row: dict = None, **_) -> dict:
     row          = row or {}
     charter_name = (row.get("Charter Name") or "").strip()
@@ -216,16 +228,17 @@ def _prospect(greeting: str, market: str, row: dict = None, **_) -> dict:
     activities   = _activities(row)
     boat         = _boat_ref(row)
     booking_ctx  = _booking_context(row)
+    loc_ref      = _in_loc(name, market)   # " in Tybee Island" or "" if redundant
 
     # Build the activity observation line used in SMS + email opener
     if activities and boat:
-        activity_line = f"saw you run {activities} out of your {boat} in {market}"
+        activity_line = f"saw you run {activities} out of your {boat}{loc_ref}"
     elif activities:
-        activity_line = f"saw you run {activities} in {market}"
+        activity_line = f"saw you run {activities}{loc_ref}"
     elif boat:
-        activity_line = f"saw you have a {boat} in {market}"
+        activity_line = f"saw you have a {boat}{loc_ref}"
     else:
-        activity_line = f"saw you're operating in {market}"
+        activity_line = f"saw you're operating{loc_ref}"
 
     if variant == "fishing":
         sms_body = (
@@ -249,13 +262,13 @@ def _prospect(greeting: str, market: str, row: dict = None, **_) -> dict:
             f"Best,\nCasey\nBoatsetter"
         )
         subject = (
-            f"More anglers for {charter_name} in {market}"
+            f"More anglers for {charter_name}{loc_ref}"
             if charter_name else f"More fishing charter clients in {market}"
         )
 
     elif variant == "rental":
         if boat:
-            opener = f"I came across {name} -- saw you have a {boat} available in {market}"
+            opener = f"I came across {name} -- saw you have a {boat} available{loc_ref}"
         else:
             opener = f"I came across {name}"
         sms_body = (
@@ -279,7 +292,7 @@ def _prospect(greeting: str, market: str, row: dict = None, **_) -> dict:
             f"Best,\nCasey\nBoatsetter"
         )
         subject = (
-            f"Fill {charter_name}'s open days in {market}"
+            f"Fill {charter_name}'s open days{loc_ref}"
             if charter_name else f"Fill your open days in {market}"
         )
 
@@ -304,7 +317,7 @@ def _prospect(greeting: str, market: str, row: dict = None, **_) -> dict:
             f"Best,\nCasey\nBoatsetter"
         )
         subject = (
-            f"More bookings for {charter_name} in {market}"
+            f"More bookings for {charter_name}{loc_ref}"
             if charter_name else f"More bookings in {market}"
         )
 
@@ -426,6 +439,7 @@ def _casey_followup(greeting: str, market: str, touch: int, row: dict = None, **
     charter_name = (row.get("Charter Name") or "").strip()
     name         = charter_name or "your operation"
     variant      = _prospect_variant(row)
+    loc_ref      = _in_loc(name, market)
 
     # Pick a type-specific phrase for the final follow-up
     _type_ref = {"fishing": "fishing", "rental": "rental"}.get(variant, "charter")
@@ -455,7 +469,7 @@ def _casey_followup(greeting: str, market: str, touch: int, row: dict = None, **
         sms_body = (
             f"{greeting}\n\n"
             f"Casey here, one last follow-up from Boatsetter.\n\n"
-            f"If you're open to getting more {_type_ref} bookings in {market}, just reply "
+            f"If you're open to getting more {_type_ref} bookings{loc_ref}, just reply "
             f"and I'll get {name} set up. No pressure either way.\n\n"
             f"- Casey"
         )
@@ -463,7 +477,7 @@ def _casey_followup(greeting: str, market: str, touch: int, row: dict = None, **
             f"{greeting}\n\n"
             f"Casey here, just one last follow-up.\n\n"
             f"If you're interested in getting {name} on Boatsetter and capturing more "
-            f"{_type_ref} bookings in {market}, I'm here to make it easy. Just reply and "
+            f"{_type_ref} bookings{loc_ref}, I'm here to make it easy. Just reply and "
             f"we'll get started.\n\n"
             f"If the timing isn't right, no worries at all.\n\n"
             f"Best,\nCasey\nBoatsetter"
