@@ -44,9 +44,10 @@ A Python + Streamlit outreach engine for Boatsetter's supply team. Reads boat ow
     ├── segmentation.py           ← Eligibility logic — determines touch # per row
     ├── kustomer_client.py        ← Kustomer API wrapper (lookup, create, send)
     ├── sheets_connector.py       ← Google Sheets read/write wrapper
-    ├── cross_list.py             ← 6-layer cross-list detection (runs during Prep)
+    ├── cross_list.py             ← 6-layer cross-list detection (runs during Funnel Prep)
     ├── split_not_live.py         ← Splits BS-Not-Live into actionable vs churn
     ├── classify_not_live.py      ← Assigns Tier + Action + Contact Status
+    ├── prep_prospects.py         ← Prospects tab prep: columns, dropdowns + funnel detection
     ├── seed_test_rows.py         ← Seeds team members as test rows (per-person selection)
     ├── template_store.py         ← Loads/saves per-market template overrides from _templates tab
     ├── metrics.py                ← Aggregates outreach metrics across all markets/tabs
@@ -167,15 +168,19 @@ A contact is skipped entirely if `Replied? = true`.
 
 ## Prep Pipeline
 
-Prep must be run once per new Snowflake data export, before any outreach. The web app Prep tab runs these three steps in sequence:
+The Prep tab has two independent sections:
 
-### Step 1 — Split (`split_not_live.py`)
+### Funnel Prep — run once per new Snowflake export, before Phases 1 + 2
+
+Three steps in sequence:
+
+#### Step 1 — Split (`split_not_live.py`)
 
 Scans `BS - Not Live` and moves rows with churn-state `BOAT_LISTING_STATE` values to `BS - Churn`.
 
 Churn states: `blocked`, `boatbound_denied`, `deactivated`, `deleted`, `incomplete`, `insurance_denied`, `pending_insurance`, `pending_survey`
 
-### Step 2 — Classify (`classify_not_live.py`)
+#### Step 2 — Classify (`classify_not_live.py`)
 
 Assigns `Tier`, `Action to take`, and `Contact Status` to remaining rows in `BS - Not Live`.
 
@@ -187,11 +192,38 @@ Assigns `Tier`, `Action to take`, and `Contact Status` to remaining rows in `BS 
 | Tier 3 | `pending_review`, `survey_received` | Created < 2023-01-01 | Get Live |
 | Rehab | `corrections_needed` | — | Check (no outreach) |
 
-### Step 3 — Cross-List Detection (`cross_list.py`)
+#### Step 3 — Cross-List Detection (`cross_list.py`)
 
 Runs 6-layer detection across `BS - Live` and `GMB - Live`. Adds outreach tracking columns and color-coded dropdowns to both tabs.
 
 See [Cross-List Detection](#cross-list-detection) for full detail.
+
+---
+
+### Prospects Prep — run before Phase 3, safe to run after Phases 1 + 2 are done
+
+`prep_prospects.py` — only touches the `Prospects` tab. One click runs two steps:
+
+#### Step 1 — Column setup
+
+Ensures tracking columns exist (`Funnel Status`, `Action to take`, `Contact Status`, `Replied?`, `Email 1/2/3`, `SMS 1/2/3`, `Kustomer ID`, link, `Notes`). Sets `Action to take = "Prospect"` and `Contact Status = "Pending Outreach"` for new rows only. Applies color-coded dropdowns.
+
+#### Step 2 — Funnel detection
+
+Cross-checks every prospect against all funnel tabs and Kustomer. Writes a `Funnel Status` per row and flips matched rows to `Manual Check` so they aren't auto-contacted.
+
+| Layer | Checks | Funnel Status written |
+|---|---|---|
+| L1+2 | BS - Live email + phone | `BS Active` |
+| L3+4 | GMB - Live email + phone | `GMB Active` |
+| L5+6 | BS - Not Live email + phone | `BS Funnel` (+ listing state in Notes) |
+| L7+8 | BS - Churn email + phone | `BS Funnel` (+ listing state in Notes) |
+| L9 | Kustomer API lookup | `In Kustomer` |
+| — | No match | `Net New` |
+
+**Net New** rows → Action stays `Prospect`, ready for outreach.
+**Matched** rows → Action flipped to `Manual Check`, review before contacting.
+**Skip** rows → never overwritten regardless of detection result.
 
 ---
 
@@ -463,5 +495,6 @@ TEAM_MEMBERS = [
 ### Not Yet Built
 
 - **Prospect scraping automation** — currently manual via `/boat-charter-prospector` skill in Claude Code
-- **Funnel detection for Prospects tab** — no cross-reference against existing BS/GMB contacts before Phase 3 outreach
+- **Prospect outreach personalization** — current templates use only a few variables; next session will redesign Phase 3 copy to be sharper and leverage all scraped columns (business name, type, activity, platform URLs, etc.). Cold outreach requires a different, more specific tone than reactivation/cross-list
+- **Prospects Prep re-run idempotency** — re-running overwrites matched rows even if manually reviewed; future fix: skip rows that already have a `Funnel Status`
 - **BS - Churn outreach** — no process yet; opportunity in `pending_insurance`, `deactivated`, `deleted`

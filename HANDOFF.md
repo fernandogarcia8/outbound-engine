@@ -13,6 +13,7 @@
     ├── cross_list.py
     ├── split_not_live.py
     ├── classify_not_live.py
+    ├── prep_prospects.py   ← Prospects tab prep: columns, dropdowns + funnel detection
     ├── seed_test_rows.py   ← Seeds team members as test rows (per-person selection)
     ├── template_store.py   ← Loads/saves per-market template overrides from _templates tab
     ├── market_discovery.py ← Drive folder scanner (handles shortcuts)
@@ -81,12 +82,36 @@ python controller.py scrape   --market savannah   # prints prospecting skill ins
 
 ---
 
-## Prep (run before outreach, once per new data export)
+## Prep (two separate sections in the Prep tab)
 
-Prep runs three steps in sequence:
+### Funnel Prep (run once per new Snowflake export, before Phases 1 + 2)
+Runs three steps in sequence:
 1. `split_not_live` — splits BS - Not Live into actionable vs BS - Churn by BOAT_LISTING_STATE
 2. `classify_not_live` — assigns Tier + Action + Contact Status + outreach columns to actionable rows
 3. `detect_cross_list` — 6-layer detection, tags BS - Live and GMB - Live, adds outreach columns + colored dropdowns to both tabs
+
+### Prospects Prep (run before Phase 3, safe to run after Phases 1 + 2)
+`prep_prospects.py` — only touches the Prospects tab. Two steps in one click:
+1. **Column setup** — ensures tracking columns exist, sets `Action to take = "Prospect"` and `Contact Status = "Pending Outreach"` for new rows, applies dropdowns
+2. **Funnel detection** — cross-checks every prospect against all funnel tabs + Kustomer API, writes a `Funnel Status` tag per row
+
+Detection layers (first match wins):
+
+| Layer | Checks | Result |
+|---|---|---|
+| L1+2 | BS - Live email + phone | `BS Active` |
+| L3+4 | GMB - Live email + phone | `GMB Active` |
+| L5+6 | BS - Not Live email + phone | `BS Funnel` + listing state in Notes |
+| L7+8 | BS - Churn email + phone | `BS Funnel` + listing state in Notes |
+| L9 | Kustomer API lookup | `In Kustomer` |
+| — | No match anywhere | `Net New` |
+
+**Funnel Status dropdown:** Net New (green) · BS Active (blue) · GMB Active (purple) · BS Funnel (yellow) · In Kustomer (peach)
+
+Matched rows → `Action to take` flipped to `Manual Check` (engine skips them). Net New rows → Action stays `Prospect`.
+Rows already set to `Skip` by the user are never overwritten.
+
+**Re-run behavior:** currently re-runs detection on all rows and overwrites `Funnel Status`, `Notes`, and `Action to take` for matched rows. If you manually promoted a matched row back to `Prospect` after review, re-running would flip it back to `Manual Check`. A future improvement would skip rows that already have a `Funnel Status`.
 
 ---
 
@@ -318,11 +343,25 @@ BS - Churn states (moved by split_not_live.py): `blocked`, `boatbound_denied`, `
 - Deduplication by owner, boat noun (boat/boats/fleet) ✅
 - Round-robin (Tyler + Fernando), persisted in `round_robin_state.json` ✅
 - Independent email/SMS error handling ✅
+- **Prospects Prep** ✅ — dedicated prep for Prospects tab only (safe post-Phase 1+2): column setup + 9-layer funnel detection, `Funnel Status` column, Manual Check for matched rows
 
 ---
 
 ## Known gaps / not yet built
 
 - **Prospect scraping automation** — currently manual via `/boat-charter-prospector` skill in Claude Code
-- **Funnel detection for Prospects tab** — no cross-reference against existing BS/GMB contacts before Phase 3 outreach
+- **Prospects Prep re-run idempotency** — re-running overwrites `Funnel Status`/`Notes`/`Action` for matched rows even if manually reviewed; future fix: skip rows that already have a `Funnel Status`
+- **Prospect outreach personalization** — current templates are generic; next session should redesign prospect outreach to be sharper and data-driven using all scraped columns (business name, type, activity type, etc.). Cold outreach so every variable from the scrape should be leveraged
 - **BS - Churn outreach** — no process yet; opportunity in `pending_insurance`, `deactivated`, `deleted`
+
+---
+
+## Next session: Prospect Outreach (Phase 3)
+
+The current prospect templates (`templates.py`) use only a handful of variables (`{charter_name}`, `{market}`, `{rep}`, `{name_ref}`, `{activity_ref}`). The prospecting skill scrapes significantly more data per business. The next session should:
+
+1. **Audit the Prospects sheet columns** — list every column the scraper outputs (business name, type, platform URLs, rating, review count, price, description, etc.)
+2. **Redesign the templates** — cold outreach needs to feel hand-written and specific. Reference the actual business, what they do, and why Boatsetter is a fit. Different tone from reactivation/cross-list copy
+3. **Add new placeholders** to `templates.py` and the Messaging tab override system
+4. **Consider variant logic** — fishing / rental / charter already exist, but may need sub-variants based on scraped signals (e.g. high-rated vs new listing, price point, review volume)
+5. **Signed as Casey** (prospect alias) — already correct, keep as-is
