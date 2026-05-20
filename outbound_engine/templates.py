@@ -113,29 +113,116 @@ def _prospect_variant(row: dict) -> str:
     return "charter"
 
 
+# ── Prospect data helpers ──────────────────────────────────────────────────────
+
+_BOAT_TYPE_KEYWORDS = [
+    "catamaran", "pontoon", "sailboat", "sail boat", "skiff", "trawler",
+    "yacht", "trimaran", "houseboat", "bowrider", "kayak",
+]
+# Generic descriptions that add no personality — skip them
+_BOAT_TYPE_SKIP = ["multi", "multiple", "fleet", "vessel", "center console", "fishing boat"]
+
+
+def _boat_ref(row: dict) -> str:
+    """
+    Returns a specific boat type noun (e.g. 'catamaran') if the Boat Type field
+    has something meaningful. Returns '' for generic/fleet descriptions.
+    """
+    raw = (row.get("Boat Type") or "").lower().strip()
+    if not raw:
+        return ""
+    for skip in _BOAT_TYPE_SKIP:
+        if skip in raw:
+            return ""
+    for keyword in _BOAT_TYPE_KEYWORDS:
+        if keyword in raw:
+            # Normalise "sail boat" → "sailboat"
+            return keyword.replace("sail boat", "sailboat")
+    return ""
+
+
+def _activities(row: dict) -> str:
+    """
+    Formats Activities/Events/Services as a readable list (up to 3 items).
+    'Inshore, offshore, gulf stream fishing' → 'inshore, offshore, and gulf stream fishing'
+    """
+    raw   = (row.get("Activities/Events/Services") or "").strip()
+    parts = [p.strip().lower() for p in raw.split(",") if p.strip()][:3]
+    if not parts:
+        return ""
+    if len(parts) == 1:
+        return parts[0]
+    if len(parts) == 2:
+        return f"{parts[0]} and {parts[1]}"
+    return f"{parts[0]}, {parts[1]}, and {parts[2]}"
+
+
+_BOOKING_PLATFORMS = {
+    "fareharbor":  "FareHarbor",
+    "fare harbor": "FareHarbor",
+    "bookeo":      "Bookeo",
+    "rezdy":       "Rezdy",
+    "checkfront":  "Checkfront",
+    "xola":        "Xola",
+    "peek":        "Peek Pro",
+    "regiondo":    "Regiondo",
+}
+
+
+def _booking_context(row: dict) -> str:
+    """
+    Returns a single sentence for operators already on a known booking platform,
+    positioning Boatsetter as an additive channel. Returns '' otherwise.
+    """
+    software = (row.get("Booking Software") or "").lower().strip()
+    if not software:
+        return ""
+    for key, display in _BOOKING_PLATFORMS.items():
+        if key in software:
+            return (
+                f"Since you're already on {display}, adding Boatsetter is a "
+                f"straightforward new demand channel -- no changes to your existing setup.\n\n"
+            )
+    return ""
+
+
 def _prospect(greeting: str, market: str, row: dict = None, **_) -> dict:
     row          = row or {}
     charter_name = (row.get("Charter Name") or "").strip()
+    name         = charter_name or "your operation"
     variant      = _prospect_variant(row)
-    name_ref     = f"I came across {charter_name}" if charter_name else "I came across your operation"
+    activities   = _activities(row)
+    boat         = _boat_ref(row)
+    booking_ctx  = _booking_context(row)
+
+    # Build the activity observation line used in SMS + email opener
+    if activities and boat:
+        activity_line = f"saw you run {activities} out of your {boat} in {market}"
+    elif activities:
+        activity_line = f"saw you run {activities} in {market}"
+    elif boat:
+        activity_line = f"saw you have a {boat} in {market}"
+    else:
+        activity_line = f"saw you're operating in {market}"
 
     if variant == "fishing":
         sms_body = (
             f"{greeting}\n\n"
-            f"Casey here from Boatsetter. {name_ref}.\n\n"
-            f"Looks like you're running fishing charters in {market}. We're a booking marketplace "
-            f"and anglers in the area are actively searching for guides like you.\n\n"
-            f"Would you be open to a quick chat?\n\n"
+            f"Casey from Boatsetter. I came across {name} -- {activity_line}.\n\n"
+            f"Anglers search Boatsetter when booking local guided fishing trips. We're growing "
+            f"our {market} guide network and think you'd be a great fit.\n\n"
+            f"Open to a quick chat?\n\n"
             f"- Casey"
         )
         email_body = (
             f"{greeting}\n\n"
-            f"Casey here from Boatsetter. {name_ref} and wanted to reach out.\n\n"
-            f"We're a boat and charter marketplace. When anglers search for guided fishing trips "
-            f"in {market}, our platform is where they look. We're building out our network of "
-            f"local guides there and think you'd be a great fit.\n\n"
-            f"Listing is free, you keep full control of your calendar and pricing, "
-            f"and we drive more clients your way.\n\n"
+            f"Casey from Boatsetter here. I came across {name} and {activity_line}.\n\n"
+            f"When anglers look for guided fishing trips in {market}, Boatsetter is one of the "
+            f"first places they search. We're building out our local guide network and think "
+            f"{name} would be a strong addition.\n\n"
+            f"{booking_ctx}"
+            f"Free to list, you keep full control of your calendar and pricing, and we send "
+            f"the bookings your way.\n\n"
             f"Would you be open to a quick call this week?\n\n"
             f"Best,\nCasey\nBoatsetter"
         )
@@ -145,22 +232,27 @@ def _prospect(greeting: str, market: str, row: dict = None, **_) -> dict:
         )
 
     elif variant == "rental":
+        if boat:
+            opener = f"I came across {name} -- saw you have a {boat} available in {market}"
+        else:
+            opener = f"I came across {name}"
         sms_body = (
             f"{greeting}\n\n"
-            f"Casey here from Boatsetter. {name_ref}.\n\n"
-            f"We're a peer-to-peer boat rental marketplace growing in {market}. Listing on "
-            f"Boatsetter fills your open calendar days without you chasing bookings.\n\n"
-            f"Would you be open to a quick chat?\n\n"
+            f"Casey from Boatsetter. {opener}.\n\n"
+            f"We're a peer-to-peer boat rental marketplace growing in {market}. Listing with us "
+            f"fills your open calendar days without you chasing bookings.\n\n"
+            f"Open to a quick chat?\n\n"
             f"- Casey"
         )
         email_body = (
             f"{greeting}\n\n"
-            f"Casey here from Boatsetter. {name_ref} and wanted to reach out.\n\n"
-            f"We're a boat rental marketplace. People in {market} come to us when they're "
-            f"looking to rent a boat for the day. We're growing our inventory of local operators "
-            f"and think you'd be a natural fit.\n\n"
-            f"There's no cost to list, you control your own schedule and pricing, "
-            f"and we handle the booking flow.\n\n"
+            f"Casey from Boatsetter here. {opener} and wanted to reach out.\n\n"
+            f"We're a boat rental marketplace. When people in {market} look to rent a boat "
+            f"for the day, Boatsetter is where they search. We're growing our local inventory "
+            f"and think {name} would be a natural fit.\n\n"
+            f"{booking_ctx}"
+            f"No cost to list, you control your schedule and pricing, and we handle the "
+            f"booking flow end to end.\n\n"
             f"Would you be open to a quick chat this week?\n\n"
             f"Best,\nCasey\nBoatsetter"
         )
@@ -169,27 +261,24 @@ def _prospect(greeting: str, market: str, row: dict = None, **_) -> dict:
             if charter_name else f"Fill your open days in {market}"
         )
 
-    else:  # charter — tours, eco, sunset, watersports, yacht
-        activities   = (row.get("Activities/Events/Services") or "").split(",")[0].strip().lower()
-        activity_ref = f", including {activities}," if activities else ""
+    else:  # charter -- tours, eco, sunset, watersports, yacht
         sms_body = (
             f"{greeting}\n\n"
-            f"Casey here from Boatsetter. {name_ref}{activity_ref} in {market}.\n\n"
-            f"We're a boat and experience marketplace. Visitors search our platform when "
-            f"booking exactly what you offer.\n\n"
-            f"Think it's worth a quick chat?\n\n"
+            f"Casey from Boatsetter. I came across {name} -- {activity_line}.\n\n"
+            f"We're a boat and experience marketplace. Visitors book water activities on "
+            f"Boatsetter before they even land in {market}. Think it's worth a quick chat?\n\n"
             f"- Casey"
         )
         email_body = (
             f"{greeting}\n\n"
-            f"Casey here from Boatsetter. {name_ref} and wanted to reach out.\n\n"
+            f"Casey from Boatsetter here. I came across {name} and wanted to reach out.\n\n"
             f"We're a boat and experience marketplace. When visitors search for things to do "
-            f"on the water in {market}, our platform is where they look. We're growing our "
-            f"network of local operators there and think "
-            f"{charter_name or 'your operation'} would be a great fit.\n\n"
-            f"No cost to list, you stay in full control of your schedule, "
-            f"and we bring you more customers.\n\n"
-            f"Would you be open to a quick chat this week?\n\n"
+            f"on the water in {market}, Boatsetter is one of the first places they look. "
+            f"We're growing our local operator network and think {name} would be a great addition.\n\n"
+            f"{booking_ctx}"
+            f"No cost to list, you stay in full control of your schedule, and we bring you "
+            f"more customers.\n\n"
+            f"Would you be open to a quick call this week?\n\n"
             f"Best,\nCasey\nBoatsetter"
         )
         subject = (
@@ -313,42 +402,54 @@ def _casey_followup(greeting: str, market: str, touch: int, row: dict = None, **
     """Touch 2 and 3 for prospect (Casey alias)."""
     row          = row or {}
     charter_name = (row.get("Charter Name") or "").strip()
-    name_ref     = charter_name or "your operation"
+    name         = charter_name or "your operation"
+    variant      = _prospect_variant(row)
+
+    # Pick a type-specific phrase for the final follow-up
+    _type_ref = {"fishing": "fishing", "rental": "rental"}.get(variant, "charter")
 
     if touch == 2:
         sms_body = (
             f"{greeting}\n\n"
-            f"Casey again from Boatsetter.\n\n"
-            f"Just following up on my last message. We're actively building out our network in "
-            f"{market} and would love to get {name_ref} listed.\n\n"
-            f"Happy to walk you through it in 10 minutes. Still open to it?"
+            f"Casey again from Boatsetter. Just following up on my last message about "
+            f"getting {name} listed.\n\n"
+            f"We're actively growing our {market} network right now. Happy to walk you "
+            f"through it in 10 minutes. Still open to it?\n\n"
+            f"- Casey"
         )
         email_body = (
             f"{greeting}\n\n"
-            f"Casey here from Boatsetter. Just wanted to follow up on my last note.\n\n"
-            f"We're continuing to grow our operator network in {market} and think "
-            f"{name_ref} would be a great addition. It's a quick setup and there's no cost to list.\n\n"
+            f"Casey from Boatsetter, following up on my last note.\n\n"
+            f"We're continuing to build out our {market} operator network and {name} is "
+            f"exactly the kind of operation we're looking for. Quick setup, no cost to list.\n\n"
             f"Would you have 10 minutes for a call this week?\n\n"
             f"Best,\nCasey\nBoatsetter"
         )
-        subject = f"Following up on Boatsetter listing for {name_ref}"
+        subject = (
+            f"Following up -- {charter_name} + Boatsetter"
+            if charter_name else f"Following up on Boatsetter for {market}"
+        )
     else:
         sms_body = (
             f"{greeting}\n\n"
             f"Casey here, one last follow-up from Boatsetter.\n\n"
-            f"If you're interested in getting {name_ref} listed and driving more bookings in "
-            f"{market}, just reply and I'll get you set up.\n\n"
-            f"No pressure either way!"
+            f"If you're open to getting more {_type_ref} bookings in {market}, just reply "
+            f"and I'll get {name} set up. No pressure either way.\n\n"
+            f"- Casey"
         )
         email_body = (
             f"{greeting}\n\n"
-            f"Casey here. Just one last follow-up.\n\n"
-            f"If you're open to getting {name_ref} on Boatsetter and capturing more "
-            f"bookings in {market}, I'm here to make it easy. Just reply and we'll get started.\n\n"
+            f"Casey here, just one last follow-up.\n\n"
+            f"If you're interested in getting {name} on Boatsetter and capturing more "
+            f"{_type_ref} bookings in {market}, I'm here to make it easy. Just reply and "
+            f"we'll get started.\n\n"
             f"If the timing isn't right, no worries at all.\n\n"
             f"Best,\nCasey\nBoatsetter"
         )
-        subject = "Last follow-up from Boatsetter"
+        subject = (
+            f"Last note -- {charter_name} + Boatsetter"
+            if charter_name else f"Last note from Boatsetter"
+        )
 
     return {"sms_body": sms_body, "email_body": email_body, "email_subject": subject}
 
@@ -491,7 +592,13 @@ def get_default_templates() -> dict[str, str]:
     for variant in ("fishing", "rental", "charter"):
         _add(f"prospect_{variant}_t1", _prospect(
             greeting="{greeting}", market="{market}",
-            row={"Type": variant, "Charter Name": "{charter_name}", "Activities/Events/Services": ""},
+            row={
+                "Type": variant,
+                "Charter Name": "{charter_name}",
+                "Activities/Events/Services": "{activities}",
+                "Boat Type": "",
+                "Booking Software": "",
+            },
         ))
 
     # ── Touch 2 & 3 ───────────────────────────────────────────────────────────
@@ -588,18 +695,21 @@ def get_messages(
     # Apply market-specific overrides (field by field — partial overrides are supported)
     if market_overrides:
         charter_name = (row.get("Charter Name") or "").strip()
-        activities   = (row.get("Activities/Events/Services") or "").split(",")[0].strip().lower()
         subs = {
             "greeting":     greeting,
             "market":       market,
             "rep":          assignee_name,
             "boat_noun":    _boat_noun(boat_count),
             "charter_name": charter_name,
+            "activities":   _activities(row),
+            "boat_type":    _boat_ref(row),
             "name_ref": (
                 f"I came across {charter_name}" if charter_name
                 else "I came across your operation"
             ),
-            "activity_ref": f", including {activities}," if activities else "",
+            "activity_ref": (
+                f", including {_activities(row)}," if _activities(row) else ""
+            ),
         }
         key_prefix = f"{_seg_key}_t{touch}"
         for field, result_key in (

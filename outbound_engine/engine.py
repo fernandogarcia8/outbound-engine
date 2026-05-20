@@ -38,6 +38,9 @@ from config import (
     COL_EMAIL_3,
     COL_SMS_3,
     COL_KUSTOMER_LINK,
+    COL_DRAFT_SUBJECT,
+    COL_DRAFT_EMAIL,
+    COL_DRAFT_SMS,
     SEGMENT_COLUMN_OVERRIDES,
     REACTIVATE_RECENT_DAYS,
 )
@@ -480,6 +483,201 @@ def _summary_dict(summary: RunSummary) -> dict:
         "skipped":         summary.skipped,
         "errors":          summary.errors,
     }
+
+
+# ── Draft send ────────────────────────────────────────────────────────────────
+
+def send_from_drafts(
+    market: str,
+    sheet_id: str,
+    sheet_name: str,
+    dry_run: bool = False,
+    on_progress=None,
+) -> dict:
+    """
+    Sends prospect messages using the pre-generated Draft Subject / Draft Email /
+    Draft SMS columns instead of regenerating copy from templates.
+
+    Only rows that have at least one draft column populated AND are still
+    eligible (same touch-timing logic as run_campaign) are processed.
+
+    Drafts are kept in the sheet after sending as a permanent record.
+    """
+    def report(msg: str) -> None:
+        if on_progress:
+            on_progress(msg)
+        else:
+            print(msg)
+
+    run_timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H-%M-%S")
+    logger  = setup_file_logger(run_timestamp)
+    summary = RunSummary()
+
+    mode_label = "[DRY RUN] " if dry_run else ""
+    report(f"{mode_label}Sending prospect drafts -- market={market}")
+
+    sheets   = SheetsConnector(sheet_id, sheet_name)
+    all_rows = sheets.get_all_rows()
+    report(f"Found {len(all_rows)} total rows in sheet.")
+
+    overrides     = SEGMENT_COLUMN_OVERRIDES.get("prospect", {})
+    email_col     = overrides.get("email") or COL_OWNER_EMAIL
+    phone_col     = overrides.get("phone") or COL_OWNER_PHONE
+
+    all_rows_norm = [normalize_row(r, "prospect") for r in all_rows]
+
+    # Filter to rows that have a draft AND are still eligible for outreach
+    raw_eligible  = filter_eligible_rows(all_rows_norm, "prospect")
+    eligible      = _deduplicate_by_owner(raw_eligible)
+
+    # Keep only rows that have at least one draft column populated
+    def _has_draft(row: dict) -> bool:
+        return bool(
+            (row.get(COL_DRAFT_EMAIL)   or "").strip() or
+            (row.get(COL_DRAFT_SMS)     or "").strip()
+        )
+
+    eligible = [(row, touch) for row, touch in eligible if _has_draft(row)]
+    summary.total_eligible = len(eligible)
+
+    report(f"{len(eligible)} rows have drafts and are eligible to send.")
+
+    if not eligible:
+        report("Nothing to send -- run 'Generate Drafts' first.")
+        return _summary_dict(summary)
+
+    _print_preview(eligible, "prospect", market, report)
+
+    if dry_run:
+        report(f"{mode_label}Draft preview:")
+        for i, (row, touch) in enumerate(eligible, start=1):
+            first   = str(row.get(COL_FIRST_NAME) or "").strip().title()
+            last    = str(row.get(COL_LAST_NAME)  or "").strip().title()
+            display = f"{first} {last}".strip() or str(row.get(COL_OWNER_EMAIL) or "")
+            subj    = (row.get(COL_DRAFT_SUBJECT) or "").strip()
+            email   = (row.get(COL_DRAFT_EMAIL)   or "").strip()
+            sms     = (row.get(COL_DRAFT_SMS)      or "").strip()
+            report(f"\n[{i}/{len(eligible)}] {display}  (Touch {touch})")
+            if subj:
+                report(f"  Subject : {subj}")
+            if email:
+                report(f"  Email   :\n{email}")
+            if sms:
+                report(f"  SMS     :\n{sms}")
+        report(f"\n{mode_label}Dry run complete -- no messages sent.")
+        summary.print_summary(logger)
+        return _summary_dict(summary)
+
+    kustomer = KustomerClient()
+
+    for i, (row, touch) in enumerate(eligible, start=1):
+        owner_email = str(row.get(COL_OWNER_EMAIL) or "").strip()
+        owner_phone = str(row.get(COL_OWNER_PHONE) or "").strip()
+        first       = str(row.get(COL_FIRST_NAME)  or "").strip()
+        last        = str(row.get(COL_LAST_NAME)   or "").strip()
+        full_name   = f"{first} {last}".strip() or owner_email or owner_phone
+        match_col   = (overrides.get("email") or COL_OWNER_EMAIL) if owner_email else (overrides.get("phone") or COL_OWNER_PHONE)
+        match_val   = owner_email if owner_email else owner_phone
+
+        draft_subject = (row.get(COL_DRAFT_SUBJECT) or "").strip()
+        draft_email   = (row.get(COL_DRAFT_EMAIL)   or "").strip()
+        draft_sms     = (row.get(COL_DRAFT_SMS)      or "").strip()
+
+        report(f"\n[{i}/{len(eligible)}] {full_name}  (Touch {touch})")
+
+        assignee   = get_next_assignee()
+        email_col_ts, sms_col_ts = _TOUCH_COLS[touch]
+        email_sent = False
+        sms_sent   = False
+
+        try:
+            kustomer_id = kustomer.get_or_create_customer(row)
+            report(f"  -> Kustomer ID: {kustomer_id}")
+
+            if not (row.get(COL_KUSTOMER_ID) or "").strip():
+                sheets.update_row(match_col, match_val, {COL_KUSTOMER_ID: kustomer_id})
+
+            conversation = kustomer.create_conversation(
+                customer_id=kustomer_id,
+                assigned_user_id=assignee["kustomer_id"],
+                segment="prospect",
+                market=market,
+            )
+            conversation_id = conversation["id"]
+            report(f"  -> Conversation created, assigned to {assignee['name']}")
+
+        except Exception as exc:
+            summary.record_error()
+            report(f"  -> ERROR (setup): {exc} -- skipping.")
+            logger.error(f"FAIL | {full_name} | touch={touch} | setup | {exc}")
+            continue
+
+        if owner_email and draft_email:
+            try:
+                kustomer.send_email(
+                    customer_id=kustomer_id,
+                    conversation_id=conversation_id,
+                    subject=draft_subject or "Boatsetter",
+                    body=draft_email,
+                    to_email=owner_email,
+                    to_name=full_name,
+                )
+                email_sent = True
+                report(f"  -> Email sent to {owner_email} ✓")
+            except Exception as exc:
+                report(f"  -> Email FAILED: {exc}")
+                logger.error(f"EMAIL FAIL | {full_name} | {exc}")
+
+        if owner_phone and draft_sms:
+            try:
+                kustomer.send_sms(
+                    customer_id=kustomer_id,
+                    conversation_id=conversation_id,
+                    body=draft_sms,
+                    to_phone=owner_phone,
+                )
+                sms_sent = True
+                report(f"  -> SMS sent to {owner_phone} ✓")
+            except Exception as exc:
+                report(f"  -> SMS FAILED: {exc}")
+                logger.error(f"SMS FAIL | {full_name} | {exc}")
+
+        try:
+            timestamp     = now_iso()
+            kustomer_link = (
+                f"https://boatsetter.kustomerapp.com/app/customers/"
+                f"{kustomer_id}/event/{conversation_id}"
+            )
+            sheet_updates = {COL_KUSTOMER_LINK: kustomer_link}
+            if touch == 1:
+                sheet_updates[COL_CONTACT_STATUS] = "Contacted"
+            if email_sent:
+                sheet_updates[email_col_ts] = timestamp
+            if sms_sent:
+                sheet_updates[sms_col_ts] = timestamp
+
+            sheets.update_row(match_col, match_val, sheet_updates)
+            report(f"  -> Sheet updated ✓")
+        except Exception as exc:
+            report(f"  -> Sheet update FAILED: {exc}")
+            logger.error(f"SHEET FAIL | {full_name} | {exc}")
+
+        if email_sent or sms_sent:
+            summary.record_sent(email_sent, sms_sent)
+        else:
+            summary.record_error()
+
+        logger.info(
+            f"{'OK' if email_sent or sms_sent else 'PARTIAL'} | {full_name} | "
+            f"touch={touch} email={email_sent} sms={sms_sent} "
+            f"| assigned={assignee['name']} | conversation={conversation_id}"
+        )
+
+        time.sleep(0.5)
+
+    report("")
+    summary.print_summary(logger)
+    return _summary_dict(summary)
 
 
 # ── CLI entry point ────────────────────────────────────────────────────────────

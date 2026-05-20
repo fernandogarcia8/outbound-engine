@@ -71,6 +71,11 @@ COL_SMS_2   = "SMS 2"
 COL_EMAIL_3 = "Email 3"
 COL_SMS_3   = "SMS 3"
 
+# Prospect draft columns — generated before send, reviewed/edited in the sheet
+COL_DRAFT_SUBJECT = "Draft Subject"
+COL_DRAFT_EMAIL   = "Draft Email"
+COL_DRAFT_SMS     = "Draft SMS"
+
 # Days since last live below which we use the "recently inactive" reactivate message
 REACTIVATE_RECENT_DAYS = 90
 
