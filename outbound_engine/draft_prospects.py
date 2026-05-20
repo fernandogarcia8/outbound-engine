@@ -36,6 +36,7 @@ def generate_drafts(
     sheet_name: str,
     market: str,
     dry_run: bool = False,
+    test_only: bool = False,
     on_progress=None,
 ) -> dict:
     """
@@ -66,9 +67,17 @@ def generate_drafts(
 
     all_rows_norm = [normalize_row(r, "prospect") for r in all_rows]
 
-    # Filter to eligible rows using the same segmentation as run_campaign
-    raw_eligible = filter_eligible_rows(all_rows_norm, "prospect")
-    eligible     = _deduplicate_by_owner(raw_eligible)
+    if test_only:
+        def _is_test_row(r: dict) -> bool:
+            return str(r.get("Notes") or "").strip().lower() == "test"
+        eligible = _deduplicate_by_owner([
+            (r, 1) for r in all_rows_norm
+            if _is_test_row(r) and (has_email(r) or has_phone(r))
+        ])
+        report(f"  [TEST ONLY] {len(eligible)} test contact(s) found")
+    else:
+        raw_eligible = filter_eligible_rows(all_rows_norm, "prospect")
+        eligible     = _deduplicate_by_owner(raw_eligible)
     report(f"  {len(eligible)} eligible rows for drafting")
 
     if not eligible:

@@ -475,6 +475,7 @@ with tab_outreach:
                             sheet_name=prospects,
                             market=market_name,
                             dry_run=dry,
+                            test_only=test_only,
                             on_progress=cb,
                         )
                         status.update(label="Draft generation complete!", state="complete")
@@ -516,10 +517,16 @@ with tab_outreach:
                         st.session_state[f"{tkey}_confirm"] = True
 
                     if st.session_state.get(f"{tkey}_confirm"):
-                        st.warning(
-                            f"Sending **Phase 3 — {touch_label}** to real contacts in "
-                            f"**{market_name}**. Messages cannot be unsent."
-                        )
+                        if test_only:
+                            st.info(
+                                f"Sending **Phase 3 — {touch_label}** to **test contacts only** in "
+                                f"**{market_name}**. Messages cannot be unsent."
+                            )
+                        else:
+                            st.warning(
+                                f"Sending **Phase 3 — {touch_label}** to real contacts in "
+                                f"**{market_name}**. Messages cannot be unsent."
+                            )
                         cc1, cc2, _ = st.columns([1, 1, 4])
                         confirmed = cc1.button("Confirm — Send", key=f"{tkey}_confirmed", type="primary")
                         cancelled = cc2.button("Cancel",         key=f"{tkey}_cancel")
@@ -542,6 +549,7 @@ with tab_outreach:
                                 sheet_id=sheet_id,
                                 sheet_name=prospects,
                                 dry_run=dry,
+                                test_only=test_only,
                                 on_progress=cb,
                             )
                             status.update(label=f"{label} complete!", state="complete")

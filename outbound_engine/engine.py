@@ -492,6 +492,7 @@ def send_from_drafts(
     sheet_id: str,
     sheet_name: str,
     dry_run: bool = False,
+    test_only: bool = False,
     on_progress=None,
 ) -> dict:
     """
@@ -526,9 +527,17 @@ def send_from_drafts(
 
     all_rows_norm = [normalize_row(r, "prospect") for r in all_rows]
 
-    # Filter to rows that have a draft AND are still eligible for outreach
-    raw_eligible  = filter_eligible_rows(all_rows_norm, "prospect")
-    eligible      = _deduplicate_by_owner(raw_eligible)
+    if test_only:
+        def _is_test_row(r: dict) -> bool:
+            return str(r.get("Notes") or "").strip().lower() == "test"
+        eligible = _deduplicate_by_owner([
+            (r, 1) for r in all_rows_norm
+            if _is_test_row(r) and (has_email(r) or has_phone(r))
+        ])
+        report(f"[TEST ONLY] Found {len(eligible)} test contact(s).")
+    else:
+        raw_eligible = filter_eligible_rows(all_rows_norm, "prospect")
+        eligible     = _deduplicate_by_owner(raw_eligible)
 
     # Keep only rows that have at least one draft column populated
     def _has_draft(row: dict) -> bool:
