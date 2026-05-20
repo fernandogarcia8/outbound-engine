@@ -25,11 +25,6 @@ _TOUCH_COLS = [
 _EMAIL_CANDIDATES = ["OWNER_EMAIL", "Email"]
 _PHONE_CANDIDATES = ["OWNER_PHONE_NUMBER", "Phone Number", "Phone"]
 
-# Normalize known capitalization inconsistencies across sheets
-_NORMALIZE_STATUS = {
-    "Not interested": "Not Interested",
-}
-
 # Skip tabs by prefix or exact name — non-outreach data
 _SKIP_PREFIXES = ("_",)
 _SKIP_NAMES    = {"SQL", "Segments", "Schedule", "Kustomer ID", "Warm Leads"}
@@ -49,20 +44,15 @@ def _empty() -> dict:
         "sms":       {1: 0, 2: 0, 3: 0},
         "contacted": 0,
         "replied":   0,
-        "by_status": {},
     }
 
 
 def _merge(a: dict, b: dict) -> dict:
-    merged_status = dict(a["by_status"])
-    for k, v in b["by_status"].items():
-        merged_status[k] = merged_status.get(k, 0) + v
     return {
         "emails":    {t: a["emails"][t] + b["emails"][t] for t in (1, 2, 3)},
         "sms":       {t: a["sms"][t]    + b["sms"][t]    for t in (1, 2, 3)},
         "contacted": a["contacted"] + b["contacted"],
         "replied":   a["replied"]   + b["replied"],
-        "by_status": merged_status,
     }
 
 
@@ -95,11 +85,6 @@ def _aggregate_tab(rows: list[dict], email_col: str | None, phone_col: str | Non
 
         if str(row.get("Replied?", "") or "").strip().lower() == "true":
             result["replied"] += 1
-
-        status = str(row.get("Contact Status", "") or "").strip()
-        status = _NORMALIZE_STATUS.get(status, status)
-        if status:
-            result["by_status"][status] = result["by_status"].get(status, 0) + 1
 
     return result
 

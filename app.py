@@ -782,16 +782,11 @@ with tab_messaging:
 
 # ══ TAB 5: Metrics ═════════════════════════════════════════════════════════════
 
-_STATUS_ORDER = [
-    "Pending Outreach", "Contacted", "Interested", "Cross-List WIP",
-    "Win", "Not Interested", "Dual Presence", "Possible Dual Presence",
-    "Already on BS Funnel", "Needs Review",
-]
-
 with tab_metrics:
     st.markdown("### Outreach Metrics")
     st.caption(
         "Excludes test rows. Fleet owners counted once regardless of boat count. "
+        "Reply Rate = owners who replied / owners contacted (toggle 'Replied?' to TRUE in the sheet when an owner responds in Kustomer). "
         "Cached for 30 min — click Refresh to force a reload."
     )
 
@@ -805,48 +800,48 @@ with tab_metrics:
     tot  = _m["total"]
     mkts = _m["markets"]
 
-    total_emails = sum(tot["emails"].values())
-    total_sms    = sum(tot["sms"].values())
-    contacted    = tot["contacted"]
-    replied      = tot["replied"]
-    reply_pct    = f"{replied / contacted * 100:.1f}%" if contacted else "—"
+    total_emails   = sum(tot["emails"].values())
+    total_sms      = sum(tot["sms"].values())
+    total_messages = total_emails + total_sms
+    contacted      = tot["contacted"]
+    replied        = tot["replied"]
+    reply_pct      = f"{replied / contacted * 100:.1f}%" if contacted else "—"
+    markets_active = sum(1 for m in mkts.values() if m["contacted"] > 0)
 
     # ── Overall summary ────────────────────────────────────────────────────────
     st.markdown("#### Overall")
-    oc1, oc2, oc3, oc4 = st.columns(4)
-    oc1.metric("Emails Sent",      total_emails)
-    oc2.metric("SMS Sent",         total_sms)
-    oc3.metric("Owners Contacted", contacted)
-    oc4.metric("Reply Rate",       reply_pct,
-               help="Toggle 'Replied?' to TRUE in the sheet when an owner responds in Kustomer.")
+    oc1, oc2, oc3 = st.columns(3)
+    oc1.metric("Markets Active",   markets_active)
+    oc2.metric("Owners Contacted", contacted)
+    oc3.metric("Reply Rate",       reply_pct)
+
+    st.markdown("")
+    mc1, mc2, mc3 = st.columns(3)
+    mc1.metric("Emails Sent",    total_emails)
+    mc2.metric("SMS Sent",       total_sms)
+    mc3.metric("Total Messages", total_messages)
 
     st.markdown("")
 
     # ── Touch breakdown ────────────────────────────────────────────────────────
     st.markdown("#### Touch Breakdown")
-    touch_df = pd.DataFrame([
+    _touch_labels = {1: "T1 — Initial", 2: "T2 — Follow-up 1", 3: "T3 — Follow-up 2"}
+    touch_rows = [
         {
-            "Touch": f"Touch {t}",
+            "Touch":  _touch_labels[t],
             "Emails": tot["emails"][t],
             "SMS":    tot["sms"][t],
             "Total":  tot["emails"][t] + tot["sms"][t],
         }
         for t in (1, 2, 3)
-    ]).set_index("Touch")
-    st.dataframe(touch_df, use_container_width=True)
-
-    # ── Contact status breakdown ───────────────────────────────────────────────
-    if tot["by_status"]:
-        st.markdown("")
-        st.markdown("#### Contact Status")
-        status_items = sorted(
-            tot["by_status"].items(),
-            key=lambda kv: _STATUS_ORDER.index(kv[0]) if kv[0] in _STATUS_ORDER else 99,
-        )
-        _ncols = min(len(status_items), 5)
-        _scols = st.columns(_ncols)
-        for i, (status, count) in enumerate(status_items):
-            _scols[i % _ncols].metric(status, count)
+    ]
+    touch_rows.append({
+        "Touch":  "Total",
+        "Emails": total_emails,
+        "SMS":    total_sms,
+        "Total":  total_messages,
+    })
+    st.dataframe(pd.DataFrame(touch_rows).set_index("Touch"), use_container_width=True)
 
     # ── Per-market table ───────────────────────────────────────────────────────
     if mkts:
@@ -859,14 +854,13 @@ with tab_metrics:
             c = m["contacted"]
             r = m["replied"]
             mkt_rows.append({
-                "Market":     m["display_name"],
-                "Emails":     e,
-                "SMS":        s,
-                "Contacted":  c,
-                "Interested": m["by_status"].get("Interested", 0),
-                "Wins":       m["by_status"].get("Win", 0),
-                "Replied":    r,
-                "Reply Rate": f"{r / c * 100:.1f}%" if c else "—",
+                "Market":           m["display_name"],
+                "Owners Contacted": c,
+                "Emails":           e,
+                "SMS":              s,
+                "Total Messages":   e + s,
+                "Replied":          r,
+                "Reply Rate":       f"{r / c * 100:.1f}%" if c else "—",
             })
         st.dataframe(
             pd.DataFrame(mkt_rows).set_index("Market"),
