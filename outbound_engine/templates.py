@@ -29,7 +29,10 @@ def _location(row: dict, market: str) -> str:
     for col in ("Location", "BOAT_CITY"):
         val = (row.get(col) or "").strip()
         if val:
-            # Strip ", ST" suffix if present (e.g. "Savannah, GA" → "Savannah")
+            # Strip marina/suffix after " — " (e.g. "Savannah, GA — Savannah Marina" → "Savannah, GA")
+            if " — " in val:
+                val = val.split(" — ")[0].strip()
+            # Strip ", ST" state abbreviation (e.g. "Savannah, GA" → "Savannah")
             if ", " in val:
                 city, state = val.rsplit(", ", 1)
                 if len(state) == 2 and state.isalpha():
