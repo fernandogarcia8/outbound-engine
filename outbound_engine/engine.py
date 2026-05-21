@@ -42,6 +42,7 @@ from config import (
     COL_DRAFT_EMAIL,
     COL_DRAFT_SMS,
     COL_DRAFT_ASSIGNEE_ID,
+    COL_ASSIGNED_REP_ID,
     SEGMENT_COLUMN_OVERRIDES,
     REACTIVATE_RECENT_DAYS,
     TEAM_MEMBERS,
@@ -282,6 +283,8 @@ def run_campaign(
     sheets = SheetsConnector(sheet_id, sheet_name)
     if segment == "prospect" and not dry_run:
         sheets.apply_column_dropdowns(_PROSPECT_DROPDOWN_CONFIG)
+    if not dry_run:
+        sheets.ensure_columns([COL_ASSIGNED_REP_ID])
     all_rows = sheets.get_all_rows()
     report(f"Found {len(all_rows)} total rows in sheet.")
 
@@ -375,7 +378,16 @@ def run_campaign(
 
         report(f"\n[{i}/{len(eligible)}] {full_name}  (Touch {touch} — {_TOUCH_LABELS[touch]})")
 
-        assignee = get_next_assignee()
+        # Reuse the T1 rep for follow-ups so the name stays consistent across touches
+        saved_rep_id = str(row.get(COL_ASSIGNED_REP_ID) or "").strip()
+        if touch > 1 and saved_rep_id:
+            assignee = next(
+                (m for m in TEAM_MEMBERS if m["kustomer_id"] == saved_rep_id),
+                get_next_assignee(),
+            )
+        else:
+            assignee = get_next_assignee()
+
         variant  = _message_variant(segment, sheet_name, row)
         messages = get_messages(
             segment, row, market,
@@ -459,7 +471,8 @@ def run_campaign(
             )
             sheet_updates = {COL_KUSTOMER_LINK: kustomer_link}
             if touch == 1:
-                sheet_updates[COL_CONTACT_STATUS] = "Contacted"
+                sheet_updates[COL_CONTACT_STATUS]  = "Contacted"
+                sheet_updates[COL_ASSIGNED_REP_ID] = assignee["kustomer_id"]
             if email_sent:
                 sheet_updates[email_col] = timestamp
             if sms_sent:

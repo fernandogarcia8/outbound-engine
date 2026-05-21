@@ -24,6 +24,7 @@ from config import (
     SEGMENT_COLUMN_OVERRIDES,
     SEGMENT_ACTIONS,
 )
+from config import TEAM_MEMBERS
 from engine import normalize_row, _deduplicate_by_owner, _message_variant
 from segmentation import filter_eligible_rows, has_email, has_phone
 from sheets_connector import SheetsConnector
@@ -107,7 +108,16 @@ def generate_drafts(
             skipped += 1
             continue
 
-        assignee = get_next_assignee()
+        # Reuse the T1 rep for follow-up drafts so the name stays consistent
+        saved_rep_id = str(row.get(COL_DRAFT_ASSIGNEE_ID) or "").strip()
+        if touch > 1 and saved_rep_id:
+            assignee = next(
+                (m for m in TEAM_MEMBERS if m["kustomer_id"] == saved_rep_id),
+                get_next_assignee(),
+            )
+        else:
+            assignee = get_next_assignee()
+
         variant  = _message_variant("prospect", sheet_name, row)
 
         try:

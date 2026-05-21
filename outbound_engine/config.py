@@ -77,6 +77,9 @@ COL_DRAFT_EMAIL       = "Draft Email"
 COL_DRAFT_SMS         = "Draft SMS"
 COL_DRAFT_ASSIGNEE_ID = "Draft Assignee ID"  # Kustomer ID of rep assigned at draft time
 
+# Rep consistency across touches — written at T1, read at T2/T3
+COL_ASSIGNED_REP_ID   = "Assigned Rep ID"
+
 # Days since last live below which we use the "recently inactive" reactivate message
 REACTIVATE_RECENT_DAYS = 90
 
