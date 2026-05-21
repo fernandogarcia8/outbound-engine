@@ -20,6 +20,7 @@ from config import (
     COL_DRAFT_SUBJECT,
     COL_DRAFT_EMAIL,
     COL_DRAFT_SMS,
+    COL_DRAFT_ASSIGNEE_ID,
     SEGMENT_COLUMN_OVERRIDES,
     SEGMENT_ACTIONS,
 )
@@ -123,9 +124,10 @@ def generate_drafts(
             continue
 
         draft = {
-            COL_DRAFT_SUBJECT: messages["email_subject"],
-            COL_DRAFT_EMAIL:   messages["email_body"],
-            COL_DRAFT_SMS:     messages["sms_body"],
+            COL_DRAFT_SUBJECT:     messages["email_subject"],
+            COL_DRAFT_EMAIL:       messages["email_body"],
+            COL_DRAFT_SMS:         messages["sms_body"],
+            COL_DRAFT_ASSIGNEE_ID: assignee["kustomer_id"],
         }
 
         if not dry_run:

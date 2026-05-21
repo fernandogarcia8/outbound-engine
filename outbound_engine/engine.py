@@ -41,8 +41,10 @@ from config import (
     COL_DRAFT_SUBJECT,
     COL_DRAFT_EMAIL,
     COL_DRAFT_SMS,
+    COL_DRAFT_ASSIGNEE_ID,
     SEGMENT_COLUMN_OVERRIDES,
     REACTIVATE_RECENT_DAYS,
+    TEAM_MEMBERS,
 )
 
 _PROSPECT_DROPDOWN_CONFIG = {
@@ -594,7 +596,17 @@ def send_from_drafts(
 
         report(f"\n[{i}/{len(eligible)}] {full_name}  (Touch {touch})")
 
-        assignee   = get_next_assignee()
+        # Use the rep saved at draft-generation time so the assignment matches the body text.
+        # Fall back to round-robin only if the column is missing (e.g. old drafts).
+        saved_assignee_id = (row.get(COL_DRAFT_ASSIGNEE_ID) or "").strip()
+        if saved_assignee_id:
+            assignee = next(
+                (m for m in TEAM_MEMBERS if m["kustomer_id"] == saved_assignee_id),
+                get_next_assignee(),
+            )
+        else:
+            assignee = get_next_assignee()
+
         email_col_ts, sms_col_ts = _TOUCH_COLS[touch]
         email_sent = False
         sms_sent   = False

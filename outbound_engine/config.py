@@ -47,7 +47,7 @@ CONVERSATION_NAMES = {
     "reactivate": "Boatsetter Listing Reactivation",
     "get_live":   "Boatsetter - Listing Approval",
     "relist":     "Boatsetter - Listing Approval",
-    "prospect":   "Boatsetter - New Partner Inquiry",
+    "prospect":   "Supply Acquisition - Prospect",
     "cross_list": "Boatsetter x Getmyboat — Cross-Listing",
 }
 
@@ -72,9 +72,10 @@ COL_EMAIL_3 = "Email 3"
 COL_SMS_3   = "SMS 3"
 
 # Prospect draft columns — generated before send, reviewed/edited in the sheet
-COL_DRAFT_SUBJECT = "Draft Subject"
-COL_DRAFT_EMAIL   = "Draft Email"
-COL_DRAFT_SMS     = "Draft SMS"
+COL_DRAFT_SUBJECT     = "Draft Subject"
+COL_DRAFT_EMAIL       = "Draft Email"
+COL_DRAFT_SMS         = "Draft SMS"
+COL_DRAFT_ASSIGNEE_ID = "Draft Assignee ID"  # Kustomer ID of rep assigned at draft time
 
 # Days since last live below which we use the "recently inactive" reactivate message
 REACTIVATE_RECENT_DAYS = 90

@@ -28,6 +28,7 @@ from config import (
     COL_DRAFT_SUBJECT,
     COL_DRAFT_EMAIL,
     COL_DRAFT_SMS,
+    COL_DRAFT_ASSIGNEE_ID,
     SEGMENT_COLUMN_OVERRIDES,
 )
 from kustomer_client import KustomerClient
@@ -49,6 +50,7 @@ TRACKING_COLUMNS = [
     COL_DRAFT_SUBJECT,
     COL_DRAFT_EMAIL,
     COL_DRAFT_SMS,
+    COL_DRAFT_ASSIGNEE_ID,
     COL_EMAIL_1, COL_SMS_1,
     COL_EMAIL_2, COL_SMS_2,
     COL_EMAIL_3, COL_SMS_3,
