@@ -460,7 +460,7 @@ def _cross_list_bs_followup(
             f"Would you like us to get this started?\n\n"
             f"Best,\n{assignee_name}"
         )
-        subject = f"Following up on the Getmyboat listing in {market}"
+        subject = f"Following up on Boatsetter x Getmyboat in {market}"
     else:
         sms_body = (
             f"{greeting}\n\n"
@@ -476,7 +476,7 @@ def _cross_list_bs_followup(
             f"Just reply when you're ready and we'll make it happen.\n\n"
             f"Thank you!\n{assignee_name}"
         )
-        subject = "Last follow-up on the Getmyboat listing"
+        subject = "Last follow-up on Boatsetter x Getmyboat"
 
     return {"sms_body": sms_body, "email_body": email_body, "email_subject": subject}
 
