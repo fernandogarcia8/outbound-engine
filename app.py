@@ -430,12 +430,6 @@ with tab_outreach:
         },
     ]
 
-    touch_defs = [
-        {"label": "Initial",      "note": "First outreach — send first",            "suffix": "t1"},
-        {"label": "Follow-up 1",  "note": "Send after Initial is complete",          "suffix": "t2"},
-        {"label": "Follow-up 2",  "note": "Send after Follow-up 1 is complete",     "suffix": "t3"},
-    ]
-
     for phase in phases:
         num = phase["num"]
         key = phase["key"]
@@ -664,44 +658,48 @@ with tab_outreach:
                     else:
                         st.success(f"**{label}** sent for **{market_name}**.")
 
-            # ── Phases 1 + 2 — standard dry-run / send flow ───────────────────
+            # ── Phases 1 + 2 — Initial / Follow-up 1 / Follow-up 2 ───────────
             else:
-                for ti, tdef in enumerate(touch_defs):
-                    tkey        = f"{key}_{tdef['suffix']}"
-                    touch_label = tdef["label"]
-                    touch_note  = tdef["note"]
+                _funnel_steps = [
+                    {"label": "Initial",     "caption": "First outreach to eligible contacts.",                                      "min_touch": 1, "max_touch": 1},
+                    {"label": "Follow-up 1", "caption": "Contacts where Initial was sent and no reply received.",                    "min_touch": 2, "max_touch": 2},
+                    {"label": "Follow-up 2", "caption": "Contacts where Follow-up 1 was sent and no reply received.",               "min_touch": 3, "max_touch": 3},
+                ]
 
-                    lbl_col, dry_col, live_col, _ = st.columns([2.2, 1, 1.4, 2])
-                    lbl_col.markdown(
-                        f"**{touch_label}** &nbsp;"
-                        f"<span style='color:#94A3B8; font-size:0.8rem'>{touch_note}</span>",
-                        unsafe_allow_html=True,
-                    )
-                    dry_btn  = dry_col.button("Dry Run",             key=f"{tkey}_dry")
-                    live_btn = live_col.button(f"Send {touch_label}", key=f"{tkey}_live", type="primary")
+                for si, step in enumerate(_funnel_steps):
+                    step_label = step["label"]
+                    min_t      = step["min_touch"]
+                    max_t      = step["max_touch"]
+                    skey       = f"{key}_s{min_t}"
 
-                    if live_btn:
-                        st.session_state[f"{tkey}_confirm"] = True
+                    st.markdown(f"**{step_label}**")
+                    st.caption(step["caption"])
 
-                    if st.session_state.get(f"{tkey}_confirm"):
-                        st.warning(
-                            f"Sending **{phase['label']} — {touch_label}** to real contacts in "
-                            f"**{market_name}**{'  (test contacts only)' if test_only else ''}. "
-                            f"Messages cannot be unsent."
-                        )
+                    sc1, sc2, _ = st.columns([1, 1.4, 4])
+                    s_dry  = sc1.button("Dry Run",             key=f"{skey}_dry")
+                    s_live = sc2.button(f"Send {step_label}",  key=f"{skey}_live", type="primary")
+
+                    if s_live:
+                        st.session_state[f"{skey}_confirm"] = True
+
+                    if st.session_state.get(f"{skey}_confirm"):
+                        if test_only:
+                            st.info(f"Sending **{phase['label']} — {step_label}** to **test contacts only** in **{market_name}**. Messages cannot be unsent.")
+                        else:
+                            st.warning(f"Sending **{phase['label']} — {step_label}** to real contacts in **{market_name}**. Messages cannot be unsent.")
                         cc1, cc2, _ = st.columns([1, 1, 4])
-                        confirmed = cc1.button("Confirm — Send", key=f"{tkey}_confirmed", type="primary")
-                        cancelled = cc2.button("Cancel",         key=f"{tkey}_cancel")
+                        confirmed = cc1.button("Confirm — Send", key=f"{skey}_confirmed", type="primary")
+                        cancelled = cc2.button("Cancel",         key=f"{skey}_cancel")
                         if cancelled:
-                            st.session_state[f"{tkey}_confirm"] = False
+                            st.session_state[f"{skey}_confirm"] = False
                             st.rerun()
                     else:
                         confirmed = False
 
-                    if dry_btn or confirmed:
-                        dry = dry_btn
+                    if s_dry or confirmed:
+                        dry = s_dry
                         if confirmed:
-                            st.session_state[f"{tkey}_confirm"] = False
+                            st.session_state[f"{skey}_confirm"] = False
                         log_ph = st.empty()
                         cb     = make_log_runner(log_ph)
 
@@ -709,9 +707,10 @@ with tab_outreach:
                             market=market_name, sheet_id=sheet_id,
                             dry_run=dry, test_only=test_only,
                             require_approval=False, on_progress=cb,
+                            min_touch=min_t, max_touch=max_t,
                         )
 
-                        label = f"{'[DRY RUN] ' if dry else ''}{phase['label']} — {touch_label}"
+                        label = f"{'[DRY RUN] ' if dry else ''}{phase['label']} — {step_label}"
                         with st.status(f"Running {label}...", expanded=True) as status:
                             if num == 1:
                                 st.write("**1 / 2** — BS - Live → Getmyboat (email + SMS)")
@@ -730,7 +729,7 @@ with tab_outreach:
                         else:
                             st.success(f"**{label}** sent for **{market_name}**.")
 
-                    if ti < len(touch_defs) - 1:
+                    if si < len(_funnel_steps) - 1:
                         st.markdown(
                             "<hr style='margin:0.6rem 0; border:none; border-top:1px solid #E2E8F0'>",
                             unsafe_allow_html=True,
