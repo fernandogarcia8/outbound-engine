@@ -101,6 +101,8 @@ streamlit run app.py
 
 Lives at https://supply-outbound-engine.streamlit.app. Deploys automatically from the `main` branch of the GitHub repo. Secrets (API keys + GCP service account) are stored in Streamlit Cloud's secrets manager — never in code.
 
+**Login gate:** The app is publicly viewable but all action buttons are disabled until the user logs in. Credentials live in Streamlit secrets under `[auth]` (`username` + `password`). To update credentials, edit the secret on share.streamlit.io and reboot the app. Local dev bypasses the login entirely.
+
 ### CLI (alternative to web app)
 
 ```bash

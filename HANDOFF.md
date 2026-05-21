@@ -43,6 +43,14 @@ GitHub repo: https://github.com/fernandogarcia8/outbound-engine (private)
 
 Secrets (API keys + GCP service account JSON) are stored in the Streamlit Cloud secrets manager — never committed to git. To update a secret, go to the app settings on share.streamlit.io.
 
+**Login gate:** All action buttons are disabled until the user logs in. Credentials are stored in Streamlit secrets under `[auth]`:
+```toml
+[auth]
+username = "supply"
+password = "yourpassword"
+```
+Anyone can open the app and view it (metrics, templates, UI). Only logged-in users can run prep, outreach, or save templates. Local dev bypasses the login entirely — no secrets needed.
+
 Local dev still works unchanged — `streamlit run app.py` reads from `outbound_engine/.env`.
 
 ---
