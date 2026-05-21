@@ -291,13 +291,27 @@ All em dashes removed — they signal AI-generated content. Use `--` (double hyp
 | Variant | Trigger |
 |---|---|
 | `fishing` | Type contains "fishing" |
-| `rental` | Type contains "rental" or "sailboat" |
-| `charter` | Everything else (tours, eco, sunset, watersports, yacht) |
+| `charter` | Everything else (rental, tours, eco, sunset, watersports, yacht) |
 
-### Prospect data helpers (new)
-- **`_activities(row)`** — formats `Activities/Events/Services` as "X, Y, and Z" (up to 3). Used in the activity observation line for all three variants.
-- **`_boat_ref(row)`** — extracts a specific boat type noun (catamaran, skiff, pontoon, sailboat, etc.) from `Boat Type`. Returns `""` for generic descriptions like "multi-vessel fleet" or "center console" so those never show up in copy.
-- **`_booking_context(row)`** — if `Booking Software` is a known platform (FareHarbor, Bookeo, Rezdy, etc.), returns one sentence positioning Boatsetter as an additive channel. Returns `""` for direct booking or unknown software.
+Rental was merged into charter — both get booking-focused copy.
+
+### Prospect signing
+Prospects are signed with **real rep names (Tyler or Fernando)** — round-robin, same as funnel segments. The "Casey" alias is gone.
+
+Rep is assigned at `Generate Drafts` time and saved in `Draft Assignee ID`. At send time, that saved ID is used so the body copy and Kustomer assignment always match. For T2/T3 follow-ups, the same rep from T1 is reused.
+
+### Location personalization (`_location()`)
+- Prospects: reads `Location` column
+- Funnel rows: reads `BOAT_CITY` column
+- Strips trailing state abbreviation: "Savannah, GA" → "Savannah"
+- Strips marina suffix: "Savannah, GA — Savannah Marina" → "Savannah"
+- Falls back to market DMA name if both columns empty
+- `_in_loc(name, location)` skips `" in {location}"` if the city is already in the business name (avoids "Tybee Island Watersports in Tybee Island")
+
+### Prospect data helpers
+- **`_activities(row)`** — formats `Activities/Events/Services` as "X, Y, and Z" (up to 3). Used in the activity observation line.
+- **`_boat_ref(row)`** — extracts a specific boat type noun (catamaran, skiff, pontoon, sailboat, etc.) from `Boat Type`. Returns `""` for generic descriptions like "multi-vessel fleet" or "center console".
+- **`_booking_context(row)`** — if `Booking Software` is a known platform (FareHarbor, Bookeo, Rezdy, etc.), returns one sentence positioning Boatsetter as an additive channel.
 
 All three helpers are also exposed as `{activities}`, `{boat_type}` placeholders in the per-market template override system.
 
@@ -325,32 +339,33 @@ BS - Churn states (moved by split_not_live.py): `blocked`, `boatbound_denied`, `
 
 ---
 
-## Phase 3 — Prospect draft flow
+## Phase 3 — Prospect outreach flow
 
-Phase 3 uses a review-before-send flow instead of the standard dry-run/send:
+Phase 3 splits T1 (draft review) from T2/T3 (direct send):
 
 ```
-Generate Drafts → review + edit in Sheet → Send Drafts → Confirm
+Step 1 — Generate Drafts  →  Step 2 — Send Initial  →  Step 3 — Send Follow-ups
 ```
 
 ### Step 1 — Generate Drafts (`draft_prospects.py`)
-Reads all eligible prospect rows, calls `get_messages()` per row, and writes three columns to the Prospects tab:
+Only generates T1 (initial outreach) drafts. Writes three columns to the Prospects tab:
 
 | Column | Contents |
 |---|---|
 | `Draft Subject` | Email subject line |
 | `Draft Email` | Full email body |
 | `Draft SMS` | Full SMS body |
+| `Draft Assignee ID` | Kustomer ID of assigned rep (used at send time) |
 
-Nothing is sent. Drafts stay in the sheet permanently as a record after sending. Hide the columns in Sheets when they clutter the view (right-click → Hide column).
+Nothing is sent. Drafts stay in the sheet permanently as a send record.
 
-### Step 2 — Review in Sheet
-Open the Prospects tab, read every draft. Edit any cell — fix an awkward activity string, adjust a sentence, add a personal line. Any cell you change is what gets sent.
+### Step 2 — Send Initial (`engine.send_from_drafts()`)
+Sends exactly what is in the draft columns. Writes timestamps to `Email 1` / `SMS 1`. Rep assignment is read from `Draft Assignee ID` so the email/SMS body and the Kustomer assignment always match.
 
-### Step 3 — Send Drafts (`engine.send_from_drafts()`)
-Reads rows where draft columns are populated and still eligible (same touch-timing as `run_campaign`). Sends exactly what is in the draft columns via Kustomer. Writes timestamps to `Email 1` / `SMS 1` etc. Does **not** clear the draft columns after sending.
+### Step 3 — Send Follow-ups (`engine.run_campaign(min_touch=2)`)
+T2/T3 send directly from templates — no draft review step. Replies on the **same Kustomer conversation** as T1 (reads conversation ID from `KUSTOMER_CONVERSATION_ID` URL). Same rep as T1 is reused (stored in `Draft Assignee ID` column).
 
-Rows without a draft are skipped. Re-generating drafts before a T2/T3 round overwrites the T1 drafts with follow-up copy — that is expected behavior.
+> ⚠️ **Known issue:** Conversation threading (T2/T3 replying on same thread) is not yet confirmed working for any phase. Need to verify correct Kustomer API call — N8N workflow comparison pending.
 
 ---
 
@@ -377,14 +392,17 @@ Rows without a draft are skipped. Re-generating drafts before a T2/T3 round over
 - Deduplication by owner, boat noun (boat/boats/fleet) ✅
 - Round-robin (Tyler + Fernando), persisted in `round_robin_state.json` ✅
 - Independent email/SMS error handling ✅
-- **Prospects Prep** ✅ — dedicated prep for Prospects tab only (safe post-Phase 1+2): column setup + 9-layer funnel detection, `Funnel Status` column, Manual Check for matched rows
-- **Prospect draft flow** ✅ — Generate Drafts writes to sheet, review/edit in Sheets, Send Drafts sends exactly what's written; permanent audit trail
-- **Sharp prospect templates** ✅ — activities (up to 3, formatted naturally), boat type (specific nouns only), booking software context (FareHarbor etc.), first name greeting from Owner Name
+- **Prospects Prep** ✅ — dedicated prep for Prospects tab only (safe post-Phase 1+2): column setup + funnel detection, `Funnel Status` column, Manual Check for matched rows
+- **Prospect draft flow (T1 only)** ✅ — Generate Drafts writes T1 drafts to sheet; review/edit in Sheets; Send Initial sends exactly what's written; T2/T3 send directly from templates
+- **Prospect templates** ✅ — real rep names (Tyler/Fernando), fishing/charter variants, city-level location, activities/boat type/booking software personalization
+- **Rep consistency across touches** ✅ — same rep used for T1/T2/T3; saved in `Draft Assignee ID` (prospects) and `Assigned Rep ID` (funnel)
+- **Location personalization** ✅ — city-level for all segments; strips state suffix + marina suffix; avoids city repetition in business names
 
 ---
 
 ## Known gaps / not yet built
 
+- **Follow-up conversation threading** ⚠️ — T2/T3 should reply on the same Kustomer thread as T1. Code parses conversation ID from `KUSTOMER_CONVERSATION_ID` URL. Not yet confirmed working — need to verify correct API call. User will share N8N workflow to diagnose.
 - **Prospect scraping automation** — currently manual via `/boat-charter-prospector` skill in Claude Code
 - **Prospects Prep re-run idempotency** — re-running overwrites `Funnel Status`/`Notes`/`Action` for matched rows even if manually reviewed; future fix: skip rows that already have a `Funnel Status`
 - **BS - Churn outreach** — no process yet; opportunity in `pending_insurance`, `deactivated`, `deleted`
