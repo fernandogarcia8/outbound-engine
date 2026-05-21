@@ -4,6 +4,7 @@ Three API keys are used: read-only (lookups), write (conversations/send), create
 """
 
 import os
+import re
 from datetime import datetime, timezone
 
 import requests
@@ -19,6 +20,24 @@ from config import (
 )
 
 load_dotenv()
+
+
+def _normalize_phone(phone: str) -> str:
+    """Normalizes a phone number to E.164 format.
+    10 digits → +1XXXXXXXXXX (US)
+    11 digits starting with 1 → +1XXXXXXXXXX
+    Already E.164 → unchanged.
+    """
+    if not phone:
+        return phone
+    digits = re.sub(r"\D", "", phone)
+    if len(digits) == 10:
+        return f"+1{digits}"
+    if len(digits) == 11 and digits.startswith("1"):
+        return f"+{digits}"
+    if not phone.startswith("+"):
+        return f"+{digits}"
+    return phone
 
 
 class KustomerClient:
@@ -103,7 +122,7 @@ class KustomerClient:
             return existing_id
 
         email = str(row.get(COL_OWNER_EMAIL) or "").strip()
-        phone = str(row.get(COL_OWNER_PHONE) or "").strip()
+        phone = _normalize_phone(str(row.get(COL_OWNER_PHONE) or "").strip())
 
         customer = None
 
@@ -216,12 +235,11 @@ class KustomerClient:
         body: str,
         to_phone: str,
     ) -> dict:
-        if to_phone and not to_phone.startswith("+"):
-            to_phone = f"+{to_phone}"
         """
         Sends an outbound SMS draft attached to an existing conversation.
         Uses the shared supply team SMS number as sender.
         """
+        to_phone = _normalize_phone(to_phone)
         now = datetime.now(timezone.utc).isoformat()
 
         payload = {
