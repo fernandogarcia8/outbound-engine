@@ -314,11 +314,7 @@ def _cross_list_bs(
         f"Want us to get this set up for you?\n\n"
         f"Best,\n{assignee_name}"
     )
-    subject = (
-        f"Get {noun} listed on Getmyboat too in {market}"
-        if boat_count == 1
-        else f"Get listed on Getmyboat too in {market}"
-    )
+    subject = "Boatsetter x Getmyboat — Cross-Listing"
     return {"sms_body": sms_body, "email_body": email_body, "email_subject": subject}
 
 
@@ -347,7 +343,7 @@ def _cross_list_gmb(greeting: str, market: str, assignee_name: str = "the team",
     return {
         "sms_body":      sms_body,
         "email_body":    email_body,
-        "email_subject": f"Get listed on both Boatsetter & Getmyboat in {market}",
+        "email_subject": "Boatsetter x Getmyboat — Cross-Listing",
     }
 
 
@@ -460,7 +456,7 @@ def _cross_list_bs_followup(
             f"Would you like us to get this started?\n\n"
             f"Best,\n{assignee_name}"
         )
-        subject = f"Following up on Boatsetter x Getmyboat in {market}"
+        subject = "Boatsetter x Getmyboat — Cross-Listing"
     else:
         sms_body = (
             f"{greeting}\n\n"
@@ -476,7 +472,7 @@ def _cross_list_bs_followup(
             f"Just reply when you're ready and we'll make it happen.\n\n"
             f"Thank you!\n{assignee_name}"
         )
-        subject = "Last follow-up on Boatsetter x Getmyboat"
+        subject = "Boatsetter x Getmyboat — Cross-Listing"
 
     return {"sms_body": sms_body, "email_body": email_body, "email_subject": subject}
 
@@ -504,7 +500,7 @@ def _cross_list_gmb_followup(
             f"Are you available for a quick call this week?\n\n"
             f"Best,\n{assignee_name}\nGetmyboat | Boatsetter"
         )
-        subject = f"Following up on Boatsetter x Getmyboat in {market}"
+        subject = "Boatsetter x Getmyboat — Cross-Listing"
     else:
         sms_body = (
             f"{greeting}\n\n"
@@ -522,7 +518,7 @@ def _cross_list_gmb_followup(
             f"just reply and I'll get everything set up for you.\n\n"
             f"Best,\n{assignee_name}\nGetmyboat | Boatsetter"
         )
-        subject = "Last follow-up on Boatsetter x Getmyboat"
+        subject = "Boatsetter x Getmyboat — Cross-Listing"
 
     return {"sms_body": sms_body, "email_body": email_body, "email_subject": subject}
 
