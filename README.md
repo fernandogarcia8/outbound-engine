@@ -228,21 +228,19 @@ Cross-checks every prospect against all funnel tabs and Kustomer. Writes a `Funn
 
 ---
 
-### Phase 3 Outreach — T1 draft flow + T2/T3 direct send
-
-Phase 3 splits initial outreach (draft review) from follow-ups (direct send):
+### Phase 3 Outreach — 4-step flow
 
 ```
-Step 1 — Generate Drafts → Step 2 — Send Initial → Step 3 — Send Follow-ups
+Step 1 — Generate Drafts → Step 2 — Send Initial → Step 3 — Follow-up 1 → Step 4 — Follow-up 2
 ```
 
 **Step 1 — Generate Drafts** (`draft_prospects.py`) — generates T1 drafts only. Writes `Draft Subject`, `Draft Email`, `Draft SMS`, and `Draft Assignee ID` to the Prospects tab. Nothing is sent.
 
-**Step 2 — Send Initial** (`engine.send_from_drafts()`) — sends exactly what is in the draft columns. Rep assignment comes from `Draft Assignee ID` so body copy and Kustomer assignment always match. Writes timestamps to `Email 1` / `SMS 1`.
+**Step 2 — Send Initial** (`engine.send_from_drafts()`) — sends exactly what is in the draft columns. Rep assignment comes from `Draft Assignee ID` so body copy and Kustomer assignment always match. Writes timestamps to `Email 1` / `SMS 1`. Kustomer conversation title is set to the `Draft Subject` value.
 
-**Step 3 — Send Follow-ups** (`engine.run_campaign(min_touch=2)`) — T2/T3 send directly from templates, no draft review. Replies on the same Kustomer conversation as T1. Same rep as T1 is reused.
+**Step 3 — Follow-up 1** (`engine.run_campaign(min_touch=2, max_touch=2)`) — sends T2 directly from templates. Replies on the same Kustomer conversation as T1. Email subject falls back to `Draft Subject` column. Same rep as T1.
 
-> ⚠️ **Known issue:** Conversation threading (T2/T3 replying on same thread as T1) is not yet confirmed working across any phase. Pending N8N workflow comparison to identify correct API call.
+**Step 4 — Follow-up 2** (`engine.run_campaign(min_touch=3, max_touch=3)`) — sends T3 directly from templates. Same threading and rep behaviour as Follow-up 1.
 
 ---
 
@@ -532,11 +530,13 @@ TEAM_MEMBERS = [
 - Independent email/SMS error handling ✅
 - **Rep consistency across all touches** — same rep (Tyler or Fernando) used for T1/T2/T3; stored in `Draft Assignee ID` (prospects) and `Assigned Rep ID` (funnel) ✅
 - **Prospect templates** — real rep names, fishing/charter variants, city-level location, activities/boat type/booking software personalization, no em dashes ✅
-- **Phase 3 split flow** — T1 via draft review (Generate → edit → Send Initial); T2/T3 via direct send (Send Follow-ups button calls `run_campaign(min_touch=2)`) ✅
+- **Phase 3 4-step flow** ✅ — Generate Drafts → Send Initial → Follow-up 1 → Follow-up 2; each step targets exactly one touch
+- **Phase 1+2 step flow** ✅ — separate Initial / Follow-up 1 / Follow-up 2 buttons per phase; each targets exactly one touch (min_touch=max_touch)
+- **Follow-up conversation threading** ✅ — T2/T3 reply on the same Kustomer thread as T1 (confirmed working); email subject reused from `Draft Subject` for prospects
+- **Cross-list email subjects** ✅ — BS variant: "Get more bookings by listing on Getmyboat too"; GMB variant: "Get more bookings by listing on Boatsetter too"
 
 ### Not Yet Built / Known Issues
 
-- **Follow-up conversation threading** ⚠️ — T2/T3 should reply on the same Kustomer thread as T1 across all phases. Code parses conversation ID from `KUSTOMER_CONVERSATION_ID` URL but this is unconfirmed working. Pending N8N workflow comparison to identify correct API call.
 - **Prospect scraping automation** — currently manual via `/boat-charter-prospector` skill in Claude Code
 - **Prospects Prep re-run idempotency** — re-running overwrites matched rows even if manually reviewed; future fix: skip rows that already have a `Funnel Status`
 - **BS - Churn outreach** — no process yet; opportunity in `pending_insurance`, `deactivated`, `deleted`
