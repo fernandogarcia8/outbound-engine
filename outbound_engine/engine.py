@@ -676,7 +676,7 @@ def send_from_drafts(
                 kustomer.send_email(
                     customer_id=kustomer_id,
                     conversation_id=conversation_id,
-                    subject=draft_subject or "Boatsetter",
+                    subject=draft_subject,
                     body=draft_email,
                     to_email=owner_email,
                     to_name=full_name,

@@ -399,12 +399,6 @@ def _prospect_followup(greeting: str, market: str, touch: int, row: dict = None,
     row     = row or {}
     variant = _prospect_variant(row)
     rep     = assignee_name
-    subject = (
-        "Quick question about your charter"
-        if variant == "fishing" else
-        "Quick question about your business"
-    )
-
     if touch == 2:
         sms_body = (
             f"{greeting}\n\n"
@@ -440,7 +434,7 @@ def _prospect_followup(greeting: str, market: str, touch: int, row: dict = None,
             f"Best, {rep}"
         )
 
-    return {"sms_body": sms_body, "email_body": email_body, "email_subject": subject}
+    return {"sms_body": sms_body, "email_body": email_body, "email_subject": ""}
 
 
 def _cross_list_bs_followup(
