@@ -194,13 +194,17 @@ python controller.py outreach --market savannah --phase 1 --test
 - **Email from:** `{"email": "supplyteam@boatsetter.com", "name": "Boatsetter Supply Team"}`
 - **SMS from:** `+18554310490` (configurable in `.env` as `KUSTOMER_SMS_FROM`)
 - **Conversations:** include `assignedTeams: ["69b1d655010fbbf86a5557d6"]`
-- **Two API keys:** `KUSTOMER_API_KEY_READ` (lookups) and `KUSTOMER_API_KEY_WRITE` (send)
+- **Three API keys:**
+  - `KUSTOMER_API_KEY_READ` — lookups only
+  - `KUSTOMER_API_KEY_WRITE` — create conversations + send messages
+  - `KUSTOMER_API_KEY_CREATE` — create new customers (falls back to write key if not set)
+- **Why three keys:** the write key's permission scope doesn't cover customer creation; a separate key with that permission is required for Phase 3 initial outreach where prospects don't yet exist in Kustomer
 - **Phone normalization:** `send_sms()` auto-prepends `+` if missing (E.164)
 
 ### Google Sheets
 - Phone numbers from `get_all_records()` come back as integers — always `str()` cast
 - Rows matched on `OWNER_EMAIL` first, fallback `OWNER_PHONE_NUMBER`
-- Date written to sheet: `YYYY-MM-DD`
+- Timestamps written to sheet as proper date values (`yyyy-mm-dd` format applied to `Email 1/2/3` and `SMS 1/2/3` columns during prep). `update_row` uses `USER_ENTERED` so Sheets stores them as dates, not text — avoids the formula-bar `'` prefix.
 - Prospect sheets use different column names (`Email`, `Phone Number`, `Owner Name`) — normalized automatically via `SEGMENT_COLUMN_OVERRIDES` in `config.py`
 - **Rate limiting:** `SheetsConnector` and `template_store` both use `BackOffHTTPClient` (gspread 6.x) which auto-retries on 429s with exponential backoff
 - **Fleet owners:** `update_row` updates ALL rows matching the owner's email/phone in a single batch call — Contact Status, timestamps, Kustomer link all stay in sync across every boat row

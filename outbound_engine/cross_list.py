@@ -168,6 +168,9 @@ def detect_cross_list(
         report("\nEnsuring outreach columns and dropdowns on both Live sheets...")
         bs_connector.ensure_columns(_LIVE_TRACKING_COLUMNS + [COL_GMB_LISTING_URL])
         gmb_connector.ensure_columns(_LIVE_TRACKING_COLUMNS + [COL_BS_ADMIN_URL])
+        _ts_cols = [COL_EMAIL_1, COL_SMS_1, COL_EMAIL_2, COL_SMS_2, COL_EMAIL_3, COL_SMS_3]
+        bs_connector.format_columns_as_date(_ts_cols)
+        gmb_connector.format_columns_as_date(_ts_cols)
         bs_connector.apply_column_dropdowns(_SHARED_DROPDOWN_CONFIG)
         gmb_connector.apply_column_dropdowns(_GMB_LIVE_DROPDOWN_CONFIG)
 

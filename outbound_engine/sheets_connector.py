@@ -118,7 +118,46 @@ class SheetsConnector:
                 })
 
         if cell_updates:
-            self._sheet.batch_update(cell_updates)
+            self._sheet.batch_update(cell_updates, raw=False)
+
+    def format_columns_as_date(self, column_names: list[str]) -> None:
+        """
+        Applies a yyyy-mm-dd number format to the specified columns (data rows only,
+        not the header). Call this after ensure_columns so the columns exist first.
+
+        This prevents Google Sheets from showing the formula-bar apostrophe that
+        appears when a date-like text string is stored in an unformatted cell.
+        """
+        headers  = self._sheet.row_values(1)
+        sheet_id = self._sheet.id
+        requests = []
+
+        for col_name in column_names:
+            if col_name not in headers:
+                continue
+            col_idx = headers.index(col_name)
+            requests.append({
+                "repeatCell": {
+                    "range": {
+                        "sheetId":          sheet_id,
+                        "startRowIndex":    1,
+                        "startColumnIndex": col_idx,
+                        "endColumnIndex":   col_idx + 1,
+                    },
+                    "cell": {
+                        "userEnteredFormat": {
+                            "numberFormat": {
+                                "type":    "DATE",
+                                "pattern": "yyyy-mm-dd",
+                            }
+                        }
+                    },
+                    "fields": "userEnteredFormat.numberFormat",
+                }
+            })
+
+        if requests:
+            self._sheet.spreadsheet.batch_update({"requests": requests})
 
     def batch_update_rows(
         self, match_column: str, updates: dict[str, dict]

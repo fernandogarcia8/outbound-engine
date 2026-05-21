@@ -155,6 +155,11 @@ def prep_prospects(
     if not dry_run:
         sheets.ensure_columns(TRACKING_COLUMNS)
         sheets.ensure_column_after(COL_CONTACT_STATUS, COL_NOTES)
+        sheets.format_columns_as_date([
+            COL_EMAIL_1, COL_SMS_1,
+            COL_EMAIL_2, COL_SMS_2,
+            COL_EMAIL_3, COL_SMS_3,
+        ])
     else:
         report(f"  [DRY RUN] Would add (if missing): {', '.join(TRACKING_COLUMNS)}")
         report(f"  [DRY RUN] Would insert '{COL_NOTES}' after '{COL_CONTACT_STATUS}'")

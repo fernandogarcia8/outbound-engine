@@ -1,6 +1,6 @@
 """
 All communication with the Kustomer API lives here.
-Two API keys are used: one read-only (lookups) and one with write access (create/send).
+Three API keys are used: read-only (lookups), write (conversations/send), create (new customers).
 """
 
 import os
@@ -23,8 +23,9 @@ load_dotenv()
 
 class KustomerClient:
     def __init__(self):
-        read_key  = os.getenv("KUSTOMER_API_KEY_READ")
-        write_key = os.getenv("KUSTOMER_API_KEY_WRITE")
+        read_key   = os.getenv("KUSTOMER_API_KEY_READ")
+        write_key  = os.getenv("KUSTOMER_API_KEY_WRITE")
+        create_key = os.getenv("KUSTOMER_API_KEY_CREATE")
 
         if not read_key or not write_key:
             raise EnvironmentError(
@@ -37,6 +38,11 @@ class KustomerClient:
         }
         self._write_headers = {
             "Authorization": f"Bearer {write_key}",
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+        }
+        self._create_headers = {
+            "Authorization": f"Bearer {create_key or write_key}",
             "Accept": "application/json",
             "Content-Type": "application/json",
         }
@@ -76,7 +82,7 @@ class KustomerClient:
 
         response = requests.post(
             f"{KUSTOMER_BASE_URL}/customers",
-            headers=self._write_headers,
+            headers=self._create_headers,
             json=body,
             timeout=15,
         )

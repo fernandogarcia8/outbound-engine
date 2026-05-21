@@ -332,15 +332,18 @@ Rental is merged into charter — both get booking-focused copy framed around fi
 
 ## Kustomer Integration
 
-**Two API keys** (both required):
+**Three API keys:**
 - `KUSTOMER_API_KEY_READ` — lookups only
-- `KUSTOMER_API_KEY_WRITE` — create customers, conversations, send messages
+- `KUSTOMER_API_KEY_WRITE` — create conversations + send messages
+- `KUSTOMER_API_KEY_CREATE` — create new customers (falls back to write key if not set)
+
+The write key's permission scope covers conversations and messaging but not customer creation. `KUSTOMER_API_KEY_CREATE` is required for Phase 3 initial outreach where prospects don't yet exist in Kustomer. Follow-up touches (T2/T3) reuse the stored Kustomer ID and never call the create endpoint.
 
 ### Send flow per contact
 
 1. **Resolve Kustomer ID** — lookup by email → lookup by phone → create new customer (stored in `Kustomer ID` column)
 2. **T1: Create conversation** — assigned to rep + supply team (`assignedTeams: ["69b1d655010fbbf86a5557d6"]`); conversation URL stored in `KUSTOMER_CONVERSATION_ID`
-3. **T2/T3: Reuse conversation** — conversation ID parsed from the stored `KUSTOMER_CONVERSATION_ID` URL (`_parse_conversation_id()` splits on `/event/`); ⚠️ threading not yet confirmed working
+3. **T2/T3: Reuse conversation** — conversation ID parsed from the stored `KUSTOMER_CONVERSATION_ID` URL (`_parse_conversation_id()` splits on `/event/`)
 4. **Send email** — `POST /v1/customers/{id}/drafts` with `channel: "email"`
 5. **Send SMS** — same endpoint with `channel: "sms"`
 6. **Write back to sheet** — timestamps, conversation link, rep ID
@@ -500,7 +503,8 @@ TEAM_MEMBERS = [
 | Variable | Purpose |
 |---|---|
 | `KUSTOMER_API_KEY_READ` | Read-only Kustomer key (lookups) |
-| `KUSTOMER_API_KEY_WRITE` | Write Kustomer key (send messages) |
+| `KUSTOMER_API_KEY_WRITE` | Write Kustomer key (conversations + send messages) |
+| `KUSTOMER_API_KEY_CREATE` | Customer creation key (required for Phase 3 initial; falls back to write key if unset) |
 | `GOOGLE_SHEETS_CREDENTIALS_JSON` | Path to GCP service account JSON |
 | `MARKETS_DRIVE_FOLDER_ID` | Google Drive folder ID for market discovery |
 | `KUSTOMER_EMAIL_FROM_ADDRESS` | Outbound email address |
@@ -534,6 +538,8 @@ TEAM_MEMBERS = [
 - **Phase 1+2 step flow** ✅ — separate Initial / Follow-up 1 / Follow-up 2 buttons per phase; each targets exactly one touch (min_touch=max_touch)
 - **Follow-up conversation threading** ✅ — T2/T3 reply on the same Kustomer thread as T1 (confirmed working); email subject reused from `Draft Subject` for prospects
 - **Cross-list email subjects** ✅ — BS variant: "Get more bookings by listing on Getmyboat too"; GMB variant: "Get more bookings by listing on Boatsetter too"
+- **Timestamp date format** ✅ — `Email 1/2/3` and `SMS 1/2/3` columns formatted as `yyyy-mm-dd` during prep; `update_row` uses `USER_ENTERED` so Sheets stores proper date values (no formula-bar apostrophe)
+- **Three Kustomer API keys** ✅ — read (lookups) / write (conversations + send) / create (new customers); create key falls back to write key if unset
 
 ### Not Yet Built / Known Issues
 
