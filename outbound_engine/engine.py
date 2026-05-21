@@ -71,6 +71,16 @@ _TOUCH_COLS = {
 _TOUCH_LABELS = {1: "initial", 2: "follow-up", 3: "final"}
 
 
+def _parse_conversation_id(kustomer_link: str) -> str | None:
+    """Extracts the conversation ID from a stored Kustomer URL.
+    URL format: .../customers/{customer_id}/event/{conversation_id}
+    """
+    if not kustomer_link:
+        return None
+    parts = kustomer_link.strip().split("/event/")
+    return parts[-1] if len(parts) == 2 and parts[-1] else None
+
+
 _COL_LAST_LIVE = "BOAT_LISTING_LAST_LIVE_ON_SITE_AT"
 
 
@@ -385,15 +395,22 @@ def run_campaign(
             if not (row.get(COL_KUSTOMER_ID) or "").strip():
                 sheets.update_row(match_col, match_val, {COL_KUSTOMER_ID: kustomer_id})
 
-            # 3. Create a new conversation for this touch
-            conversation = kustomer.create_conversation(
-                customer_id=kustomer_id,
-                assigned_user_id=assignee["kustomer_id"],
-                segment=segment,
-                market=market,
+            # 3. Reuse existing conversation for T2/T3; create new only for T1
+            existing_conv_id = _parse_conversation_id(
+                str(row.get(COL_KUSTOMER_LINK) or "")
             )
-            conversation_id = conversation["id"]
-            report(f"  → Conversation created, assigned to {assignee['name']}")
+            if touch > 1 and existing_conv_id:
+                conversation_id = existing_conv_id
+                report(f"  → Replying on existing conversation {conversation_id}")
+            else:
+                conversation = kustomer.create_conversation(
+                    customer_id=kustomer_id,
+                    assigned_user_id=assignee["kustomer_id"],
+                    segment=segment,
+                    market=market,
+                )
+                conversation_id = conversation["id"]
+                report(f"  → Conversation created, assigned to {assignee['name']}")
 
         except Exception as exc:
             summary.record_error()
@@ -618,14 +635,21 @@ def send_from_drafts(
             if not (row.get(COL_KUSTOMER_ID) or "").strip():
                 sheets.update_row(match_col, match_val, {COL_KUSTOMER_ID: kustomer_id})
 
-            conversation = kustomer.create_conversation(
-                customer_id=kustomer_id,
-                assigned_user_id=assignee["kustomer_id"],
-                segment="prospect",
-                market=market,
+            existing_conv_id = _parse_conversation_id(
+                str(row.get(COL_KUSTOMER_LINK) or "")
             )
-            conversation_id = conversation["id"]
-            report(f"  -> Conversation created, assigned to {assignee['name']}")
+            if touch > 1 and existing_conv_id:
+                conversation_id = existing_conv_id
+                report(f"  -> Replying on existing conversation {conversation_id}")
+            else:
+                conversation = kustomer.create_conversation(
+                    customer_id=kustomer_id,
+                    assigned_user_id=assignee["kustomer_id"],
+                    segment="prospect",
+                    market=market,
+                )
+                conversation_id = conversation["id"]
+                report(f"  -> Conversation created, assigned to {assignee['name']}")
 
         except Exception as exc:
             summary.record_error()
