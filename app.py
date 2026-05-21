@@ -157,6 +157,13 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
+# ── Auth ────────────────────────────────────────────────────────────────────────
+_AUTH_ENABLED = False
+try:
+    _AUTH_ENABLED = "auth" in st.secrets
+except Exception:
+    pass
+
 # ── Market discovery ────────────────────────────────────────────────────────────
 
 @st.cache_data(ttl=300)
@@ -207,6 +214,29 @@ with st.sidebar:
     st.divider()
     st.caption("Markets refresh every 5 min. Add a new market by sharing a Google Sheet with the service account and placing it in the Outbound Engine Drive folder.")
 
+    if _AUTH_ENABLED:
+        st.divider()
+        if not st.session_state.get("logged_in"):
+            st.markdown('<p class="section-label">Login</p>', unsafe_allow_html=True)
+            _login_user = st.text_input("Username", placeholder="Username", label_visibility="collapsed", key="login_username")
+            _login_pass = st.text_input("Password", placeholder="Password", type="password", label_visibility="collapsed", key="login_password")
+            if st.button("Login", key="login_btn", use_container_width=True):
+                _valid_user = st.secrets["auth"].get("username", "")
+                _valid_pass = st.secrets["auth"].get("password", "")
+                if _login_user == _valid_user and _login_pass == _valid_pass:
+                    st.session_state["logged_in"] = True
+                    st.session_state["auth_user"] = _login_user
+                    st.rerun()
+                else:
+                    st.error("Invalid username or password.")
+        else:
+            st.caption(f"Logged in as **{st.session_state.get('auth_user', 'user')}**")
+            if st.button("Logout", key="logout_btn", use_container_width=True):
+                st.session_state["logged_in"] = False
+                st.rerun()
+
+_logged_in = not _AUTH_ENABLED or st.session_state.get("logged_in", False)
+
 
 # ── Streaming helper ────────────────────────────────────────────────────────────
 
@@ -225,6 +255,8 @@ def make_log_runner(log_placeholder):
 
 st.markdown(f"## {market_name}")
 st.caption("Select a tab to get started.")
+if _AUTH_ENABLED and not _logged_in:
+    st.info("🔒 Log in from the sidebar to enable all actions.")
 st.markdown("")
 
 # ── Tabs ───────────────────────────────────────────────────────────────────────
@@ -275,8 +307,8 @@ with tab_prep:
 
     st.markdown("")
     col1, col2, _ = st.columns([1, 1, 3])
-    prep_dry  = col1.button("Dry Run", key="prep_dry")
-    prep_live = col2.button("Run Prep", key="prep_live", type="primary")
+    prep_dry  = col1.button("Dry Run", key="prep_dry",  disabled=not _logged_in)
+    prep_live = col2.button("Run Prep", key="prep_live", type="primary", disabled=not _logged_in)
 
     if prep_dry or prep_live:
         dry = prep_dry
@@ -326,8 +358,8 @@ with tab_prep:
     st.markdown("")
 
     col1p, col2p, _ = st.columns([1, 1, 3])
-    prep_p_dry  = col1p.button("Dry Run",       key="prep_prospects_dry")
-    prep_p_live = col2p.button("Run Prep",       key="prep_prospects_live", type="primary")
+    prep_p_dry  = col1p.button("Dry Run",  key="prep_prospects_dry",  disabled=not _logged_in)
+    prep_p_live = col2p.button("Run Prep", key="prep_prospects_live", type="primary", disabled=not _logged_in)
 
     if prep_p_dry or prep_p_live:
         dry = prep_p_dry
@@ -384,8 +416,8 @@ with tab_outreach:
 
         st.caption("Adds selected contacts as test rows to all sheet tabs. Skips any tab where they already exist.")
         seed_col1, seed_col2, _ = st.columns([1, 1, 4])
-        seed_dry  = seed_col1.button("Preview", key="seed_dry")
-        seed_live = seed_col2.button("Seed test rows", key="seed_live", type="primary")
+        seed_dry  = seed_col1.button("Preview",        key="seed_dry",  disabled=not _logged_in)
+        seed_live = seed_col2.button("Seed test rows", key="seed_live", type="primary", disabled=not _logged_in)
 
         if seed_dry or seed_live:
             if not _members_to_seed:
@@ -455,8 +487,8 @@ with tab_outreach:
                     "No messages are sent. Edit any cell in the sheet before sending."
                 )
                 gcol1, gcol2, _ = st.columns([1, 1, 4])
-                gen_dry  = gcol1.button("Dry Run",          key="p3_gen_dry")
-                gen_live = gcol2.button("Generate Drafts",  key="p3_gen_live", type="primary")
+                gen_dry  = gcol1.button("Dry Run",         key="p3_gen_dry",  disabled=not _logged_in)
+                gen_live = gcol2.button("Generate Drafts", key="p3_gen_live", type="primary", disabled=not _logged_in)
 
                 if gen_dry or gen_live:
                     log_ph = st.empty()
@@ -494,8 +526,8 @@ with tab_outreach:
                     "Draft columns are kept as a record after sending."
                 )
                 s2c1, s2c2, _ = st.columns([1, 1.4, 4])
-                s2_dry  = s2c1.button("Dry Run",          key=f"{key}_t1_dry")
-                s2_live = s2c2.button("Send Initial",     key=f"{key}_t1_live", type="primary")
+                s2_dry  = s2c1.button("Dry Run",      key=f"{key}_t1_dry",  disabled=not _logged_in)
+                s2_live = s2c2.button("Send Initial", key=f"{key}_t1_live", type="primary", disabled=not _logged_in)
 
                 if s2_live:
                     st.session_state[f"{key}_t1_confirm"] = True
@@ -512,8 +544,8 @@ with tab_outreach:
                             f"**{market_name}**. Messages cannot be unsent."
                         )
                     cc1, cc2, _ = st.columns([1, 1, 4])
-                    s2_confirmed = cc1.button("Confirm — Send", key=f"{key}_t1_confirmed", type="primary")
-                    s2_cancelled = cc2.button("Cancel",         key=f"{key}_t1_cancel")
+                    s2_confirmed = cc1.button("Confirm — Send", key=f"{key}_t1_confirmed", type="primary", disabled=not _logged_in)
+                    s2_cancelled = cc2.button("Cancel",         key=f"{key}_t1_cancel",    disabled=not _logged_in)
                     if s2_cancelled:
                         st.session_state[f"{key}_t1_confirm"] = False
                         st.rerun()
@@ -554,8 +586,8 @@ with tab_outreach:
                     "Only contacts where Initial was sent and no reply received."
                 )
                 s3c1, s3c2, _ = st.columns([1, 1.4, 4])
-                s3_dry  = s3c1.button("Dry Run",        key=f"{key}_fu1_dry")
-                s3_live = s3c2.button("Send Follow-up 1", key=f"{key}_fu1_live", type="primary")
+                s3_dry  = s3c1.button("Dry Run",          key=f"{key}_fu1_dry",  disabled=not _logged_in)
+                s3_live = s3c2.button("Send Follow-up 1", key=f"{key}_fu1_live", type="primary", disabled=not _logged_in)
 
                 if s3_live:
                     st.session_state[f"{key}_fu1_confirm"] = True
@@ -566,8 +598,8 @@ with tab_outreach:
                     else:
                         st.warning(f"Sending **Phase 3 — Follow-up 1** to real contacts in **{market_name}**. Messages cannot be unsent.")
                     cc1, cc2, _ = st.columns([1, 1, 4])
-                    s3_confirmed = cc1.button("Confirm — Send", key=f"{key}_fu1_confirmed", type="primary")
-                    s3_cancelled = cc2.button("Cancel",         key=f"{key}_fu1_cancel")
+                    s3_confirmed = cc1.button("Confirm — Send", key=f"{key}_fu1_confirmed", type="primary", disabled=not _logged_in)
+                    s3_cancelled = cc2.button("Cancel",         key=f"{key}_fu1_cancel",    disabled=not _logged_in)
                     if s3_cancelled:
                         st.session_state[f"{key}_fu1_confirm"] = False
                         st.rerun()
@@ -612,8 +644,8 @@ with tab_outreach:
                     "Only contacts where Follow-up 1 was sent and no reply received."
                 )
                 s4c1, s4c2, _ = st.columns([1, 1.4, 4])
-                s4_dry  = s4c1.button("Dry Run",          key=f"{key}_fu2_dry")
-                s4_live = s4c2.button("Send Follow-up 2", key=f"{key}_fu2_live", type="primary")
+                s4_dry  = s4c1.button("Dry Run",          key=f"{key}_fu2_dry",  disabled=not _logged_in)
+                s4_live = s4c2.button("Send Follow-up 2", key=f"{key}_fu2_live", type="primary", disabled=not _logged_in)
 
                 if s4_live:
                     st.session_state[f"{key}_fu2_confirm"] = True
@@ -624,8 +656,8 @@ with tab_outreach:
                     else:
                         st.warning(f"Sending **Phase 3 — Follow-ups 2** to real contacts in **{market_name}**. Messages cannot be unsent.")
                     cc1, cc2, _ = st.columns([1, 1, 4])
-                    s4_confirmed = cc1.button("Confirm — Send", key=f"{key}_fu2_confirmed", type="primary")
-                    s4_cancelled = cc2.button("Cancel",         key=f"{key}_fu2_cancel")
+                    s4_confirmed = cc1.button("Confirm — Send", key=f"{key}_fu2_confirmed", type="primary", disabled=not _logged_in)
+                    s4_cancelled = cc2.button("Cancel",         key=f"{key}_fu2_cancel",    disabled=not _logged_in)
                     if s4_cancelled:
                         st.session_state[f"{key}_fu2_confirm"] = False
                         st.rerun()
@@ -676,8 +708,8 @@ with tab_outreach:
                     st.caption(step["caption"])
 
                     sc1, sc2, _ = st.columns([1, 1.4, 4])
-                    s_dry  = sc1.button("Dry Run",             key=f"{skey}_dry")
-                    s_live = sc2.button(f"Send {step_label}",  key=f"{skey}_live", type="primary")
+                    s_dry  = sc1.button("Dry Run",            key=f"{skey}_dry",  disabled=not _logged_in)
+                    s_live = sc2.button(f"Send {step_label}", key=f"{skey}_live", type="primary", disabled=not _logged_in)
 
                     if s_live:
                         st.session_state[f"{skey}_confirm"] = True
@@ -688,8 +720,8 @@ with tab_outreach:
                         else:
                             st.warning(f"Sending **{phase['label']} — {step_label}** to real contacts in **{market_name}**. Messages cannot be unsent.")
                         cc1, cc2, _ = st.columns([1, 1, 4])
-                        confirmed = cc1.button("Confirm — Send", key=f"{skey}_confirmed", type="primary")
-                        cancelled = cc2.button("Cancel",         key=f"{skey}_cancel")
+                        confirmed = cc1.button("Confirm — Send", key=f"{skey}_confirmed", type="primary", disabled=not _logged_in)
+                        cancelled = cc2.button("Cancel",         key=f"{skey}_cancel",    disabled=not _logged_in)
                         if cancelled:
                             st.session_state[f"{skey}_confirm"] = False
                             st.rerun()
@@ -859,7 +891,7 @@ with tab_messaging:
     btn_col1, btn_col2, _ = st.columns([1.4, 1.2, 4])
 
     with btn_col1:
-        if st.button(f"Save for {market_name}", type="primary", key="msg_save"):
+        if st.button(f"Save for {market_name}", type="primary", key="msg_save", disabled=not _logged_in):
             _overrides[_sms_key]     = new_sms
             _overrides[_email_key]   = new_email
             _overrides[_subject_key] = new_subject
@@ -872,7 +904,7 @@ with tab_messaging:
                 st.error(f"Save failed: {e}")
 
     with btn_col2:
-        if _is_customized and st.button("Reset to default", key="msg_reset"):
+        if _is_customized and st.button("Reset to default", key="msg_reset", disabled=not _logged_in):
             for _k in (_sms_key, _email_key, _subject_key):
                 _overrides.pop(_k, None)
             # Reset widget state so textareas show the default on next render
@@ -897,7 +929,7 @@ with tab_metrics:
         "Cached for 30 min — click Refresh to force a reload."
     )
 
-    if st.button("🔄 Refresh", key="metrics_refresh"):
+    if st.button("🔄 Refresh", key="metrics_refresh", disabled=not _logged_in):
         load_metrics_cached.clear()
         st.rerun()
 
