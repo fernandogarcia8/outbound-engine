@@ -975,6 +975,11 @@ with tab_metrics:
     with st.spinner("Loading metrics across all markets..."):
         _m = load_metrics_cached()
 
+    # Clear stale cache if it holds the old single-dict format
+    if "funnel" not in _m:
+        load_metrics_cached.clear()
+        st.rerun()
+
     _funnel   = _m["funnel"]
     _prospect = _m["prospect"]
 
