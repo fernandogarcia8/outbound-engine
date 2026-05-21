@@ -921,71 +921,24 @@ with tab_messaging:
 
 # ══ TAB 5: Metrics ═════════════════════════════════════════════════════════════
 
-with tab_metrics:
-    st.markdown("### Outreach Metrics")
-    st.caption(
-        "Excludes test rows. Fleet owners counted once regardless of boat count. "
-        "Reply Rate = owners who replied / owners contacted (toggle 'Replied?' to TRUE in the sheet when an owner responds in Kustomer). "
-        "Cached for 30 min — click Refresh to force a reload."
-    )
-
-    if st.button("🔄 Refresh", key="metrics_refresh", disabled=not _logged_in):
-        load_metrics_cached.clear()
-        st.rerun()
-
-    with st.spinner("Loading metrics across all markets..."):
-        _m = load_metrics_cached()
-
-    tot  = _m["total"]
-    mkts = _m["markets"]
-
-    total_emails   = sum(tot["emails"].values())
-    total_sms      = sum(tot["sms"].values())
-    total_messages = total_emails + total_sms
-    contacted      = tot["contacted"]
+def _render_metrics_section(tot: dict, mkts: dict):
+    """Renders summary cards + touch breakdown + by-market table for one category."""
+    total_emails = sum(tot["emails"].values())
+    total_sms    = sum(tot["sms"].values())
+    contacted    = tot["contacted"]
     replied        = tot["replied"]
     reply_pct      = f"{replied / contacted * 100:.1f}%" if contacted else "—"
-    markets_active = sum(1 for m in mkts.values() if m["contacted"] > 0)
 
-    # ── Overall summary ────────────────────────────────────────────────────────
-    st.markdown("#### Overall")
-    oc1, oc2, oc3 = st.columns(3)
-    oc1.metric("Markets Active",   markets_active)
-    oc2.metric("Owners Contacted", contacted)
-    oc3.metric("Reply Rate",       reply_pct)
-
-    st.markdown("")
-    mc1, mc2, mc3 = st.columns(3)
-    mc1.metric("Emails Sent",    total_emails)
-    mc2.metric("SMS Sent",       total_sms)
-    mc3.metric("Total Messages", total_messages)
+    mc1, mc2, mc3, mc4 = st.columns(4)
+    mc1.metric("Owners Contacted", contacted)
+    mc2.metric("Reply Rate",       reply_pct)
+    mc3.metric("Emails Sent",      total_emails)
+    mc4.metric("SMS Sent",         total_sms)
 
     st.markdown("")
 
-    # ── Touch breakdown ────────────────────────────────────────────────────────
-    st.markdown("#### Touch Breakdown")
-    _touch_labels = {1: "T1 — Initial", 2: "T2 — Follow-up 1", 3: "T3 — Follow-up 2"}
-    touch_rows = [
-        {
-            "Touch":  _touch_labels[t],
-            "Emails": tot["emails"][t],
-            "SMS":    tot["sms"][t],
-            "Total":  tot["emails"][t] + tot["sms"][t],
-        }
-        for t in (1, 2, 3)
-    ]
-    touch_rows.append({
-        "Touch":  "Total",
-        "Emails": total_emails,
-        "SMS":    total_sms,
-        "Total":  total_messages,
-    })
-    st.dataframe(pd.DataFrame(touch_rows).set_index("Touch"), use_container_width=True)
-
-    # ── Per-market table ───────────────────────────────────────────────────────
     if mkts:
         st.markdown("")
-        st.markdown("#### By Market")
         mkt_rows = []
         for mkt_key, m in mkts.items():
             e = sum(m["emails"].values())
@@ -1005,3 +958,53 @@ with tab_metrics:
             pd.DataFrame(mkt_rows).set_index("Market"),
             use_container_width=True,
         )
+
+
+with tab_metrics:
+    st.markdown("### Outreach Metrics")
+    st.caption(
+        "Excludes test rows. Fleet owners counted once regardless of boat count. "
+        "Reply Rate = owners who replied / owners contacted (toggle 'Replied?' to TRUE in the sheet when an owner responds in Kustomer). "
+        "Cached for 30 min — click Refresh to force a reload."
+    )
+
+    if st.button("🔄 Refresh", key="metrics_refresh", disabled=not _logged_in):
+        load_metrics_cached.clear()
+        st.rerun()
+
+    with st.spinner("Loading metrics across all markets..."):
+        _m = load_metrics_cached()
+
+    _funnel   = _m["funnel"]
+    _prospect = _m["prospect"]
+
+    # ── Overall ────────────────────────────────────────────────────────────────
+    _ft = _funnel["total"]
+    _pt = _prospect["total"]
+    _all_emails    = sum(_ft["emails"].values()) + sum(_pt["emails"].values())
+    _all_sms       = sum(_ft["sms"].values())    + sum(_pt["sms"].values())
+    _all_contacted = _ft["contacted"] + _pt["contacted"]
+    _all_replied   = _ft["replied"]   + _pt["replied"]
+    _all_reply_pct = f"{_all_replied / _all_contacted * 100:.1f}%" if _all_contacted else "—"
+
+    st.markdown("#### Overall")
+    ov1, ov2, ov3, ov4, ov5 = st.columns(5)
+    ov1.metric("Owners Contacted", _all_contacted)
+    ov2.metric("Reply Rate",       _all_reply_pct)
+    ov3.metric("Emails Sent",      _all_emails)
+    ov4.metric("SMS Sent",         _all_sms)
+    ov5.metric("Total Messages",   _all_emails + _all_sms)
+
+    st.divider()
+
+    # ── Funnel Outreach ────────────────────────────────────────────────────────
+    st.markdown("#### Funnel Outreach")
+    st.caption("Existing owners with a prior relationship to Boatsetter or Getmyboat.")
+    _render_metrics_section(_funnel["total"], _funnel["markets"])
+
+    st.divider()
+
+    # ── Prospect Outreach ──────────────────────────────────────────────────────
+    st.markdown("#### Prospect Outreach")
+    st.caption("Prospects tab — cold outreach to net new contacts with no prior Boatsetter or Getmyboat relationship.")
+    _render_metrics_section(_prospect["total"], _prospect["markets"])

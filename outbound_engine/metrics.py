@@ -3,6 +3,9 @@ Aggregates outreach metrics across all markets and tabs.
 Deduplicates by owner email/phone — fleet owners count once.
 Filters out test rows (Notes = "test").
 Scans all worksheets automatically — handles custom tab names.
+
+Tabs whose name contains "prospect" (case-insensitive) are counted as
+prospect outreach. Everything else with touch columns counts as funnel.
 """
 
 import os
@@ -15,10 +18,13 @@ _SCOPES = [
     "https://www.googleapis.com/auth/drive.readonly",
 ]
 
+# Each entry: (touch#, email_col, sms_col_candidates)
+# sms_col_candidates is a tuple so we can handle legacy column name variants
+# (e.g. "SMS1" without a space, used in the Keys market's n8n-era Prospects tab)
 _TOUCH_COLS = [
-    (1, "Email 1", "SMS 1"),
-    (2, "Email 2", "SMS 2"),
-    (3, "Email 3", "SMS 3"),
+    (1, "Email 1", ("SMS 1", "SMS1")),
+    (2, "Email 2", ("SMS 2",)),
+    (3, "Email 3", ("SMS 3",)),
 ]
 
 # Candidate columns for owner identification, tried in priority order
@@ -27,7 +33,7 @@ _PHONE_CANDIDATES = ["OWNER_PHONE_NUMBER", "Phone Number", "Phone"]
 
 # Skip tabs by prefix or exact name — non-outreach data
 _SKIP_PREFIXES = ("_",)
-_SKIP_NAMES    = {"SQL", "Segments", "Schedule", "Kustomer ID", "Warm Leads"}
+_SKIP_NAMES    = {"SQL", "Segments", "Schedule", "Kustomer ID", "Warm Leads", "Wins"}
 
 
 def _open_client():
@@ -72,11 +78,11 @@ def _aggregate_tab(rows: list[dict], email_col: str | None, phone_col: str | Non
         seen.add(key)
 
         has_send = False
-        for touch, e_col, s_col in _TOUCH_COLS:
+        for touch, e_col, s_cols in _TOUCH_COLS:
             if str(row.get(e_col, "") or "").strip():
                 result["emails"][touch] += 1
                 has_send = True
-            if str(row.get(s_col, "") or "").strip():
+            if any(str(row.get(c, "") or "").strip() for c in s_cols):
                 result["sms"][touch] += 1
                 has_send = True
 
@@ -89,9 +95,14 @@ def _aggregate_tab(rows: list[dict], email_col: str | None, phone_col: str | Non
     return result
 
 
-def _try_aggregate_worksheet(ws) -> dict | None:
+def _tab_category(tab_name: str) -> str:
+    """Returns 'prospect' if the tab is a Prospects tab, 'funnel' otherwise."""
+    return "prospect" if "prospect" in tab_name.lower() else "funnel"
+
+
+def _try_aggregate_worksheet(ws) -> tuple[str, dict] | None:
     """
-    Reads a worksheet, auto-detects owner ID columns, and returns aggregated metrics.
+    Reads a worksheet, auto-detects owner ID columns, and returns (category, aggregated metrics).
     Returns None if the tab should be skipped (utility tab, no touch columns, no ID columns).
     """
     name = ws.title
@@ -118,40 +129,69 @@ def _try_aggregate_worksheet(ws) -> dict | None:
     if not email_col and not phone_col:
         return None
 
-    return _aggregate_tab(rows, email_col, phone_col)
+    return _tab_category(name), _aggregate_tab(rows, email_col, phone_col)
 
 
 def load_all_metrics(markets: dict) -> dict:
     """
-    Reads all market sheets and returns:
+    Reads all market sheets and returns separate funnel and prospect aggregations:
+
       {
-        "total":   { emails, sms, contacted, replied, by_status },
-        "markets": { market_key: { display_name, emails, sms, contacted, replied, by_status } }
+        "funnel": {
+          "total":   { emails, sms, contacted, replied },
+          "markets": { market_key: { display_name, emails, sms, contacted, replied } }
+        },
+        "prospect": {
+          "total":   { emails, sms, contacted, replied },
+          "markets": { market_key: { display_name, emails, sms, contacted, replied } }
+        },
       }
+
+    A market only appears in a category's "markets" dict if it has at least one send
+    in that category. Markets with both funnel and prospect data appear in both.
     """
     client = _open_client()
     if not client:
-        return {"total": _empty(), "markets": {}}
+        return {
+            "funnel":   {"total": _empty(), "markets": {}},
+            "prospect": {"total": _empty(), "markets": {}},
+        }
 
-    overall    = _empty()
-    per_market = {}
+    funnel_total   = _empty()
+    prospect_total = _empty()
+    funnel_mkts    = {}
+    prospect_mkts  = {}
 
     for market_key, market in markets.items():
-        sheet_id = market["sheet_id"]
-        mkt_agg  = _empty()
+        sheet_id     = market["sheet_id"]
+        display_name = market["display_name"]
+        funnel_agg   = _empty()
+        prospect_agg = _empty()
 
         try:
             ss = client.open_by_key(sheet_id)
         except Exception:
-            per_market[market_key] = {"display_name": market["display_name"], **mkt_agg}
             continue
 
         for ws in ss.worksheets():
-            tab_agg = _try_aggregate_worksheet(ws)
-            if tab_agg is not None:
-                mkt_agg = _merge(mkt_agg, tab_agg)
+            result = _try_aggregate_worksheet(ws)
+            if result is None:
+                continue
+            category, tab_agg = result
+            if category == "prospect":
+                prospect_agg = _merge(prospect_agg, tab_agg)
+            else:
+                funnel_agg = _merge(funnel_agg, tab_agg)
 
-        per_market[market_key] = {"display_name": market["display_name"], **mkt_agg}
-        overall = _merge(overall, mkt_agg)
+        if funnel_agg["contacted"] > 0 or sum(funnel_agg["emails"].values()) > 0:
+            funnel_mkts[market_key] = {"display_name": display_name, **funnel_agg}
+            funnel_total = _merge(funnel_total, funnel_agg)
 
-    return {"total": overall, "markets": per_market}
+        if prospect_agg["contacted"] > 0 or sum(prospect_agg["emails"].values()) > 0:
+            prospect_mkts[market_key] = {"display_name": display_name, **prospect_agg}
+            prospect_total = _merge(prospect_total, prospect_agg)
+
+    return {
+        "funnel":   {"total": funnel_total,   "markets": funnel_mkts},
+        "prospect": {"total": prospect_total, "markets": prospect_mkts},
+    }
