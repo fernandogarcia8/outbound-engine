@@ -352,7 +352,7 @@ Email and SMS are sent in independent try/except blocks so one failure doesn't b
 
 **Email from:** `{"email": "supplyteam@boatsetter.com", "name": "Boatsetter Supply Team"}`
 **SMS from:** `+18554310490` (configurable via `KUSTOMER_SMS_FROM` env var)
-**Phone normalization:** `send_sms()` auto-prepends `+` if missing (E.164 format)
+**Phone normalization:** `_normalize_phone()` in `kustomer_client.py` converts 10-digit US numbers to `+1XXXXXXXXXX`. Applied at customer lookup, customer creation, and SMS send — raw numbers from the sheet (e.g. `9123736602`) are handled correctly throughout.
 
 ### Conversation tags
 

@@ -199,7 +199,7 @@ python controller.py outreach --market savannah --phase 1 --test
   - `KUSTOMER_API_KEY_WRITE` — create conversations + send messages
   - `KUSTOMER_API_KEY_CREATE` — create new customers (falls back to write key if not set)
 - **Why three keys:** the write key's permission scope doesn't cover customer creation; a separate key with that permission is required for Phase 3 initial outreach where prospects don't yet exist in Kustomer
-- **Phone normalization:** `send_sms()` auto-prepends `+` if missing (E.164)
+- **Phone normalization:** `_normalize_phone()` in `kustomer_client.py` converts 10-digit US numbers to `+1XXXXXXXXXX`. Applied at customer lookup, customer creation, and SMS send — so raw numbers from the sheet (e.g. `9123736602`) are handled correctly throughout.
 
 ### Google Sheets
 - Phone numbers from `get_all_records()` come back as integers — always `str()` cast
