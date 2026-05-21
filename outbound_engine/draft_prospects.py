@@ -79,6 +79,8 @@ def generate_drafts(
         report(f"  [TEST ONLY] {len(eligible)} test contact(s) found")
     else:
         raw_eligible = filter_eligible_rows(all_rows_norm, "prospect")
+        # Drafts are only for initial outreach — follow-ups send directly
+        raw_eligible = [(r, t) for r, t in raw_eligible if t == 1]
         eligible     = _deduplicate_by_owner(raw_eligible)
     report(f"  {len(eligible)} eligible rows for drafting")
 

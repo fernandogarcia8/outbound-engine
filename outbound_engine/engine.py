@@ -235,6 +235,7 @@ def run_campaign(
     sms_only: bool = False,
     test_only: bool = False,
     require_approval: bool = True,
+    min_touch: int = 1,
     on_progress=None,
 ) -> dict:
     """
@@ -307,6 +308,9 @@ def run_campaign(
     else:
         raw_eligible = filter_eligible_rows(all_rows_normalized, segment)
         eligible     = _deduplicate_by_owner(raw_eligible)
+
+    if min_touch > 1:
+        eligible = [(r, t) for r, t in eligible if t >= min_touch]
 
     summary.total_eligible = len(eligible)
     report(f"{len(eligible)} rows eligible for segment '{segment}'.")
