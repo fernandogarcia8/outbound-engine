@@ -314,7 +314,7 @@ def _cross_list_bs(
         f"Want us to get this set up for you?\n\n"
         f"Best,\n{assignee_name}"
     )
-    subject = "Boatsetter x Getmyboat — Cross-Listing"
+    subject = "Get more bookings by listing on Getmyboat too"
     return {"sms_body": sms_body, "email_body": email_body, "email_subject": subject}
 
 
@@ -343,7 +343,7 @@ def _cross_list_gmb(greeting: str, market: str, assignee_name: str = "the team",
     return {
         "sms_body":      sms_body,
         "email_body":    email_body,
-        "email_subject": "Boatsetter x Getmyboat — Cross-Listing",
+        "email_subject": "Get more bookings by listing on Boatsetter too",
     }
 
 
@@ -456,7 +456,7 @@ def _cross_list_bs_followup(
             f"Would you like us to get this started?\n\n"
             f"Best,\n{assignee_name}"
         )
-        subject = "Boatsetter x Getmyboat — Cross-Listing"
+        subject = "Get more bookings by listing on Getmyboat too"
     else:
         sms_body = (
             f"{greeting}\n\n"
@@ -472,7 +472,7 @@ def _cross_list_bs_followup(
             f"Just reply when you're ready and we'll make it happen.\n\n"
             f"Thank you!\n{assignee_name}"
         )
-        subject = "Boatsetter x Getmyboat — Cross-Listing"
+        subject = "Get more bookings by listing on Getmyboat too"
 
     return {"sms_body": sms_body, "email_body": email_body, "email_subject": subject}
 
@@ -500,7 +500,7 @@ def _cross_list_gmb_followup(
             f"Are you available for a quick call this week?\n\n"
             f"Best,\n{assignee_name}\nGetmyboat | Boatsetter"
         )
-        subject = "Boatsetter x Getmyboat — Cross-Listing"
+        subject = "Get more bookings by listing on Boatsetter too"
     else:
         sms_body = (
             f"{greeting}\n\n"
@@ -518,7 +518,7 @@ def _cross_list_gmb_followup(
             f"just reply and I'll get everything set up for you.\n\n"
             f"Best,\n{assignee_name}\nGetmyboat | Boatsetter"
         )
-        subject = "Boatsetter x Getmyboat — Cross-Listing"
+        subject = "Get more bookings by listing on Boatsetter too"
 
     return {"sms_body": sms_body, "email_body": email_body, "email_subject": subject}
 
