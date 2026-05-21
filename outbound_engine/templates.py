@@ -126,12 +126,10 @@ def _get_live(greeting: str, market: str, assignee_name: str = "the team", **_) 
 
 
 def _prospect_variant(row: dict) -> str:
-    """Returns 'fishing', 'rental', or 'charter' based on the operator's Type column."""
+    """Returns 'fishing' or 'charter' based on the operator's Type column."""
     op_type = (row.get("Type") or "").lower()
     if "fishing" in op_type:
         return "fishing"
-    if "rental" in op_type or "sailboat" in op_type:
-        return "rental"
     return "charter"
 
 
@@ -220,17 +218,17 @@ def _in_loc(name: str, location: str) -> str:
     return f" in {location}"
 
 
-def _prospect(greeting: str, market: str, row: dict = None, **_) -> dict:
+def _prospect(greeting: str, market: str, row: dict = None, assignee_name: str = "the team", **_) -> dict:
     row          = row or {}
     charter_name = (row.get("Charter Name") or "").strip()
     name         = charter_name or "your operation"
     variant      = _prospect_variant(row)
     activities   = _activities(row)
     boat         = _boat_ref(row)
-    booking_ctx  = _booking_context(row)
-    loc_ref      = _in_loc(name, market)   # " in Tybee Island" or "" if redundant
+    loc_ref      = _in_loc(name, market)
+    rep          = assignee_name
 
-    # Build the activity observation line used in SMS + email opener
+    # Build the activity observation line
     if activities and boat:
         activity_line = f"saw you run {activities} out of your {boat}{loc_ref}"
     elif activities:
@@ -243,83 +241,46 @@ def _prospect(greeting: str, market: str, row: dict = None, **_) -> dict:
     if variant == "fishing":
         sms_body = (
             f"{greeting}\n\n"
-            f"Casey from Boatsetter. I came across {name} -- {activity_line}.\n\n"
-            f"Anglers search Boatsetter when booking local guided fishing trips. We're growing "
-            f"our {market} guide network and think you'd be a great fit.\n\n"
-            f"Open to a quick chat?\n\n"
-            f"- Casey"
+            f"Came across {name} -- {activity_line}. We're working with fishing guides in {market} "
+            f"to help bring more bookings their way through Boatsetter + Getmyboat.\n\n"
+            f"It's free to list and we can handle the setup for you.\n\n"
+            f"Open to it?\n\n"
+            f"- {rep}"
         )
         email_body = (
             f"{greeting}\n\n"
-            f"Casey from Boatsetter here. I came across {name} and {activity_line}.\n\n"
-            f"When anglers look for guided fishing trips in {market}, Boatsetter is one of the "
-            f"first places they search. We're building out our local guide network and think "
-            f"{name} would be a strong addition.\n\n"
-            f"{booking_ctx}"
-            f"Free to list, you keep full control of your calendar and pricing, and we send "
-            f"the bookings your way.\n\n"
-            f"Would you be open to a quick call this week?\n\n"
-            f"Best,\nCasey\nBoatsetter"
+            f"{rep} from Boatsetter here. I came across {name} and {activity_line}.\n\n"
+            f"We're working with fishing guides in {market} to help bring more bookings their way "
+            f"by listing them across both Boatsetter and Getmyboat.\n\n"
+            f"It's free to list, you stay in control of pricing and availability, and our team "
+            f"can handle the setup for you.\n\n"
+            f"The goal is simple -- bring you incremental trips without adding extra work.\n\n"
+            f"Would you be open to getting set up?\n\n"
+            f"Best, {rep}"
         )
-        subject = (
-            f"More anglers for {charter_name}{loc_ref}"
-            if charter_name else f"More fishing charter clients in {market}"
-        )
+        subject = "Quick question about your charter"
 
-    elif variant == "rental":
-        if boat:
-            opener = f"I came across {name} -- saw you have a {boat} available{loc_ref}"
-        else:
-            opener = f"I came across {name}"
+    else:  # charter + rental merged
         sms_body = (
             f"{greeting}\n\n"
-            f"Casey from Boatsetter. {opener}.\n\n"
-            f"We're a peer-to-peer boat rental marketplace growing in {market}. Listing with us "
-            f"fills your open calendar days without you chasing bookings.\n\n"
-            f"Open to a quick chat?\n\n"
-            f"- Casey"
+            f"Came across {name} -- {activity_line}. We're helping operators in {market} get more "
+            f"bookings and fill open days through Boatsetter + Getmyboat.\n\n"
+            f"It's free to list and we can handle the setup.\n\n"
+            f"Open to it?\n\n"
+            f"- {rep}"
         )
         email_body = (
             f"{greeting}\n\n"
-            f"Casey from Boatsetter here. {opener} and wanted to reach out.\n\n"
-            f"We're a boat rental marketplace. When people in {market} look to rent a boat "
-            f"for the day, Boatsetter is where they search. We're growing our local inventory "
-            f"and think {name} would be a natural fit.\n\n"
-            f"{booking_ctx}"
-            f"No cost to list, you control your schedule and pricing, and we handle the "
-            f"booking flow end to end.\n\n"
-            f"Would you be open to a quick chat this week?\n\n"
-            f"Best,\nCasey\nBoatsetter"
+            f"{rep} from Boatsetter here. I came across {name} and {activity_line}.\n\n"
+            f"We're working with operators in {market} to help bring in more bookings and fill "
+            f"open availability by listing them across both Boatsetter and Getmyboat.\n\n"
+            f"It's free to list, you stay in control of pricing and availability, and our team "
+            f"can handle the setup for you.\n\n"
+            f"The goal is simple -- help you capture more demand without adding extra work.\n\n"
+            f"Would you be open to getting set up?\n\n"
+            f"Best, {rep}"
         )
-        subject = (
-            f"Fill {charter_name}'s open days{loc_ref}"
-            if charter_name else f"Fill your open days in {market}"
-        )
-
-    else:  # charter -- tours, eco, sunset, watersports, yacht
-        sms_body = (
-            f"{greeting}\n\n"
-            f"Casey from Boatsetter. I came across {name} -- {activity_line}.\n\n"
-            f"We're a boat and experience marketplace. Visitors book water activities on "
-            f"Boatsetter before they even land in {market}. Think it's worth a quick chat?\n\n"
-            f"- Casey"
-        )
-        email_body = (
-            f"{greeting}\n\n"
-            f"Casey from Boatsetter here. I came across {name} and wanted to reach out.\n\n"
-            f"We're a boat and experience marketplace. When visitors search for things to do "
-            f"on the water in {market}, Boatsetter is one of the first places they look. "
-            f"We're growing our local operator network and think {name} would be a great addition.\n\n"
-            f"{booking_ctx}"
-            f"No cost to list, you stay in full control of your schedule, and we bring you "
-            f"more customers.\n\n"
-            f"Would you be open to a quick call this week?\n\n"
-            f"Best,\nCasey\nBoatsetter"
-        )
-        subject = (
-            f"More bookings for {charter_name}{loc_ref}"
-            if charter_name else f"More bookings in {market}"
-        )
+        subject = "Quick question about your business"
 
     return {"sms_body": sms_body, "email_body": email_body, "email_subject": subject}
 
@@ -433,58 +394,50 @@ def _bs_followup(
     return {"sms_body": sms_body, "email_body": email_body, "email_subject": subject}
 
 
-def _casey_followup(greeting: str, market: str, touch: int, row: dict = None, **_) -> dict:
-    """Touch 2 and 3 for prospect (Casey alias)."""
-    row          = row or {}
-    charter_name = (row.get("Charter Name") or "").strip()
-    name         = charter_name or "your operation"
-    variant      = _prospect_variant(row)
-    loc_ref      = _in_loc(name, market)
-
-    # Pick a type-specific phrase for the final follow-up
-    _type_ref = {"fishing": "fishing", "rental": "rental"}.get(variant, "charter")
+def _prospect_followup(greeting: str, market: str, touch: int, row: dict = None, assignee_name: str = "the team", **_) -> dict:
+    """Touch 2 and 3 for prospect segment."""
+    row     = row or {}
+    variant = _prospect_variant(row)
+    rep     = assignee_name
+    subject = (
+        "Re: Quick question about your charter"
+        if variant == "fishing" else
+        "Re: Quick question about your business"
+    )
 
     if touch == 2:
         sms_body = (
             f"{greeting}\n\n"
-            f"Casey again from Boatsetter. Just following up on my last message about "
-            f"getting {name} listed.\n\n"
-            f"We're actively growing our {market} network right now. Happy to walk you "
-            f"through it in 10 minutes. Still open to it?\n\n"
-            f"- Casey"
+            f"{rep} again from Boatsetter. Just following up on my last message. We're getting "
+            f"operators in {market} live across Boatsetter + Getmyboat to bring in more bookings. "
+            f"I think you'd be a perfect fit.\n\n"
+            f"Want me to get this started for you?\n\n"
+            f"- {rep}"
         )
         email_body = (
             f"{greeting}\n\n"
-            f"Casey from Boatsetter, following up on my last note.\n\n"
-            f"We're continuing to build out our {market} operator network and {name} is "
-            f"exactly the kind of operation we're looking for. Quick setup, no cost to list.\n\n"
-            f"Would you have 10 minutes for a call this week?\n\n"
-            f"Best,\nCasey\nBoatsetter"
-        )
-        subject = (
-            f"Following up -- {charter_name} + Boatsetter"
-            if charter_name else f"Following up on Boatsetter for {market}"
+            f"{rep} from Boatsetter here, just following up on my last note.\n\n"
+            f"We're currently getting operators in {market} set up across Boatsetter + Getmyboat "
+            f"to bring in more bookings. Demand is strong right now.\n\n"
+            f"It's quick to set up and we can handle most of it for you.\n\n"
+            f"Would you like me to get this started?\n\n"
+            f"Best,\n{rep}"
         )
     else:
         sms_body = (
             f"{greeting}\n\n"
-            f"Casey here, one last follow-up from Boatsetter.\n\n"
-            f"If you're open to getting more {_type_ref} bookings{loc_ref}, just reply "
-            f"and I'll get {name} set up. No pressure either way.\n\n"
-            f"- Casey"
+            f"If you want help getting more bookings, I can get everything set up across "
+            f"Boatsetter + Getmyboat.\n\n"
+            f"If not, all good 👍\n\n"
+            f"- {rep}"
         )
         email_body = (
             f"{greeting}\n\n"
-            f"Casey here, just one last follow-up.\n\n"
-            f"If you're interested in getting {name} on Boatsetter and capturing more "
-            f"{_type_ref} bookings{loc_ref}, I'm here to make it easy. Just reply and "
-            f"we'll get started.\n\n"
-            f"If the timing isn't right, no worries at all.\n\n"
-            f"Best,\nCasey\nBoatsetter"
-        )
-        subject = (
-            f"Last note -- {charter_name} + Boatsetter"
-            if charter_name else f"Last note from Boatsetter"
+            f"{rep} here, just one last follow-up.\n\n"
+            f"If you'd like to try getting more bookings through Boatsetter + Getmyboat, it's "
+            f"free to list and easy to get started. I can help set everything up. If not, no "
+            f"worries at all.\n\n"
+            f"Best, {rep}"
         )
 
     return {"sms_body": sms_body, "email_body": email_body, "email_subject": subject}
@@ -625,15 +578,14 @@ def get_default_templates() -> dict[str, str]:
     _add("cross_list_gmb_t1", _cross_list_gmb(
         greeting="{greeting}", market="{market}", assignee_name="{rep}"))
 
-    for variant in ("fishing", "rental", "charter"):
+    for variant in ("fishing", "charter"):
         _add(f"prospect_{variant}_t1", _prospect(
-            greeting="{greeting}", market="{market}",
+            greeting="{greeting}", market="{market}", assignee_name="{rep}",
             row={
                 "Type": variant,
                 "Charter Name": "{charter_name}",
                 "Activities/Events/Services": "{activities}",
                 "Boat Type": "",
-                "Booking Software": "",
             },
         ))
 
@@ -648,10 +600,10 @@ def get_default_templates() -> dict[str, str]:
         _add(f"cross_list_gmb_t{touch}", _cross_list_gmb_followup(
             greeting="{greeting}", market="{market}", assignee_name="{rep}", touch=touch))
 
-        for variant in ("fishing", "rental", "charter"):
-            _add(f"prospect_{variant}_t{touch}", _casey_followup(
-                greeting="{greeting}", market="{market}", touch=touch,
-                row={"Charter Name": "{charter_name}"},
+        for variant in ("fishing", "charter"):
+            _add(f"prospect_{variant}_t{touch}", _prospect_followup(
+                greeting="{greeting}", market="{market}", assignee_name="{rep}", touch=touch,
+                row={"Type": variant},
             ))
 
     return d
@@ -723,7 +675,7 @@ def get_messages(
                 greeting=greeting, market=location, assignee_name=assignee_name, touch=touch, row=row,
             )
     elif segment == "prospect":
-        result = _casey_followup(greeting=greeting, market=location, touch=touch, row=row)
+        result = _prospect_followup(greeting=greeting, market=location, touch=touch, row=row, assignee_name=assignee_name)
     else:
         result = _bs_followup(
             greeting=greeting, market=location, touch=touch, assignee_name=assignee_name
