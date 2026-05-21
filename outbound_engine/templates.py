@@ -400,9 +400,9 @@ def _prospect_followup(greeting: str, market: str, touch: int, row: dict = None,
     variant = _prospect_variant(row)
     rep     = assignee_name
     subject = (
-        "Re: Quick question about your charter"
+        "Quick question about your charter"
         if variant == "fishing" else
-        "Re: Quick question about your business"
+        "Quick question about your business"
     )
 
     if touch == 2:

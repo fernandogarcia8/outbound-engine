@@ -62,15 +62,6 @@ from template_store import load_overrides as _load_template_overrides
 from round_robin import get_next_assignee
 from logger import setup_file_logger, now_iso, RunSummary
 
-# Maps touch number → (email_col, sms_col) to write timestamps into
-_TOUCH_COLS = {
-    1: (COL_EMAIL_1, COL_SMS_1),
-    2: (COL_EMAIL_2, COL_SMS_2),
-    3: (COL_EMAIL_3, COL_SMS_3),
-}
-
-_TOUCH_LABELS = {1: "initial", 2: "follow-up", 3: "final"}
-
 
 def _parse_conversation_id(kustomer_link: str) -> str | None:
     """Extracts the conversation ID from a stored Kustomer URL.
@@ -80,6 +71,16 @@ def _parse_conversation_id(kustomer_link: str) -> str | None:
         return None
     parts = kustomer_link.strip().split("/event/")
     return parts[-1] if len(parts) == 2 and parts[-1] else None
+
+
+# Maps touch number → (email_col, sms_col) to write timestamps into
+_TOUCH_COLS = {
+    1: (COL_EMAIL_1, COL_SMS_1),
+    2: (COL_EMAIL_2, COL_SMS_2),
+    3: (COL_EMAIL_3, COL_SMS_3),
+}
+
+_TOUCH_LABELS = {1: "initial", 2: "follow-up", 3: "final"}
 
 
 _COL_LAST_LIVE = "BOAT_LISTING_LAST_LIVE_ON_SITE_AT"
@@ -708,6 +709,7 @@ def send_from_drafts(
             )
             sheet_updates = {COL_KUSTOMER_LINK: kustomer_link}
             if touch == 1:
+                sheet_updates[COL_KUSTOMER_ID]    = conversation_id
                 sheet_updates[COL_CONTACT_STATUS] = "Contacted"
             if email_sent:
                 sheet_updates[email_col_ts] = timestamp
