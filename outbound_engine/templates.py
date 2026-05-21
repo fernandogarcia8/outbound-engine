@@ -241,7 +241,7 @@ def _prospect(greeting: str, market: str, row: dict = None, assignee_name: str =
     if variant == "fishing":
         sms_body = (
             f"{greeting}\n\n"
-            f"Came across {name} -- {activity_line}. We're working with fishing guides in {market} "
+            f"Came across {name}, {activity_line}. We're working with fishing guides in {market} "
             f"to help bring more bookings their way through Boatsetter + Getmyboat.\n\n"
             f"It's free to list and we can handle the setup for you.\n\n"
             f"Open to it?\n\n"
@@ -254,7 +254,7 @@ def _prospect(greeting: str, market: str, row: dict = None, assignee_name: str =
             f"by listing them across both Boatsetter and Getmyboat.\n\n"
             f"It's free to list, you stay in control of pricing and availability, and our team "
             f"can handle the setup for you.\n\n"
-            f"The goal is simple -- bring you incremental trips without adding extra work.\n\n"
+            f"The goal is simple, bring you incremental trips without adding extra work.\n\n"
             f"Would you be open to getting set up?\n\n"
             f"Best, {rep}"
         )
@@ -263,7 +263,7 @@ def _prospect(greeting: str, market: str, row: dict = None, assignee_name: str =
     else:  # charter + rental merged
         sms_body = (
             f"{greeting}\n\n"
-            f"Came across {name} -- {activity_line}. We're helping operators in {market} get more "
+            f"Came across {name}, {activity_line}. We're helping operators in {market} get more "
             f"bookings and fill open days through Boatsetter + Getmyboat.\n\n"
             f"It's free to list and we can handle the setup.\n\n"
             f"Open to it?\n\n"
@@ -276,7 +276,7 @@ def _prospect(greeting: str, market: str, row: dict = None, assignee_name: str =
             f"open availability by listing them across both Boatsetter and Getmyboat.\n\n"
             f"It's free to list, you stay in control of pricing and availability, and our team "
             f"can handle the setup for you.\n\n"
-            f"The goal is simple -- help you capture more demand without adding extra work.\n\n"
+            f"The goal is simple, help you capture more demand without adding extra work.\n\n"
             f"Would you be open to getting set up?\n\n"
             f"Best, {rep}"
         )
