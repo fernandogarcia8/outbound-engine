@@ -121,7 +121,7 @@ class KustomerClient:
     # ── Conversation & messaging ──────────────────────────────────────────────
 
     def create_conversation(
-        self, customer_id: str, assigned_user_id: str, segment: str, market: str
+        self, customer_id: str, assigned_user_id: str, segment: str, market: str, name: str = None
     ) -> dict:
         """
         Creates a new conversation in Kustomer assigned to the given user and team.
@@ -130,7 +130,7 @@ class KustomerClient:
         tag = "supply_acq_" + market.lower().replace(" ", "_")
 
         body = {
-            "name": CONVERSATION_NAMES.get(segment, "Boatsetter Outreach"),
+            "name": name or CONVERSATION_NAMES.get(segment, "Boatsetter Outreach"),
             "customer": customer_id,
             "tags": ["outbound_engine", tag],
             "assignedTeams": [KUSTOMER_ASSIGNED_TEAM_ID],
@@ -161,6 +161,9 @@ class KustomerClient:
         """
         now = datetime.now(timezone.utc).isoformat()
 
+        if subject.startswith("Re: "):
+            subject = subject[4:]
+
         payload = {
             "body": body,
             "channel": "email",
@@ -170,24 +173,25 @@ class KustomerClient:
                 "name": KUSTOMER_EMAIL_FROM_NAME,
             },
             "to": {"email": to_email, "name": to_name},
-            "subject": subject,
             "sendAt": now,
-            "payload": {
-                "draftJs": {
-                    "blocks": [
-                        {
-                            "text": body,
-                            "key": "block1",
-                            "type": "unstyled",
-                            "depth": 0,
-                            "data": {},
-                            "inlineStyleRanges": [],
-                            "entityRanges": [],
-                        }
-                    ],
-                    "entityMap": {},
-                }
-            },
+        }
+        if subject:
+            payload["subject"] = subject
+        payload["payload"] = {
+            "draftJs": {
+                "blocks": [
+                    {
+                        "text": body,
+                        "key": "block1",
+                        "type": "unstyled",
+                        "depth": 0,
+                        "data": {},
+                        "inlineStyleRanges": [],
+                        "entityRanges": [],
+                    }
+                ],
+                "entityMap": {},
+            }
         }
 
         response = requests.post(

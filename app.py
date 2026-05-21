@@ -553,35 +553,29 @@ with tab_outreach:
                     unsafe_allow_html=True,
                 )
 
-                # ── Step 3: Send Follow-ups (direct, no draft review) ──────────
-                st.markdown("**Step 3 — Send Follow-ups**")
+                # ── Step 3: Follow-up 1 ────────────────────────────────────────
+                st.markdown("**Step 3 — Follow-up 1**")
                 st.caption(
-                    "Sends T2/T3 directly from templates on the same conversation thread as T1. "
-                    "No draft review — runs on all rows where T1 is sent and no reply received."
+                    "Sends T2 directly from templates on the same conversation thread as the initial. "
+                    "Only contacts where Initial was sent and no reply received."
                 )
                 s3c1, s3c2, _ = st.columns([1, 1.4, 4])
-                s3_dry  = s3c1.button("Dry Run",          key=f"{key}_fu_dry")
-                s3_live = s3c2.button("Send Follow-ups",  key=f"{key}_fu_live", type="primary")
+                s3_dry  = s3c1.button("Dry Run",        key=f"{key}_fu1_dry")
+                s3_live = s3c2.button("Send Follow-up 1", key=f"{key}_fu1_live", type="primary")
 
                 if s3_live:
-                    st.session_state[f"{key}_fu_confirm"] = True
+                    st.session_state[f"{key}_fu1_confirm"] = True
 
-                if st.session_state.get(f"{key}_fu_confirm"):
+                if st.session_state.get(f"{key}_fu1_confirm"):
                     if test_only:
-                        st.info(
-                            f"Sending **Phase 3 — Follow-ups** to **test contacts only** in "
-                            f"**{market_name}**. Messages cannot be unsent."
-                        )
+                        st.info(f"Sending **Phase 3 — Follow-up 1** to **test contacts only** in **{market_name}**. Messages cannot be unsent.")
                     else:
-                        st.warning(
-                            f"Sending **Phase 3 — Follow-ups** to real contacts in "
-                            f"**{market_name}**. Messages cannot be unsent."
-                        )
+                        st.warning(f"Sending **Phase 3 — Follow-up 1** to real contacts in **{market_name}**. Messages cannot be unsent.")
                     cc1, cc2, _ = st.columns([1, 1, 4])
-                    s3_confirmed = cc1.button("Confirm — Send", key=f"{key}_fu_confirmed", type="primary")
-                    s3_cancelled = cc2.button("Cancel",         key=f"{key}_fu_cancel")
+                    s3_confirmed = cc1.button("Confirm — Send", key=f"{key}_fu1_confirmed", type="primary")
+                    s3_cancelled = cc2.button("Cancel",         key=f"{key}_fu1_cancel")
                     if s3_cancelled:
-                        st.session_state[f"{key}_fu_confirm"] = False
+                        st.session_state[f"{key}_fu1_confirm"] = False
                         st.rerun()
                 else:
                     s3_confirmed = False
@@ -589,10 +583,10 @@ with tab_outreach:
                 if s3_dry or s3_confirmed:
                     dry = s3_dry
                     if s3_confirmed:
-                        st.session_state[f"{key}_fu_confirm"] = False
+                        st.session_state[f"{key}_fu1_confirm"] = False
                     log_ph = st.empty()
                     cb     = make_log_runner(log_ph)
-                    label  = f"{'[DRY RUN] ' if dry else ''}Phase 3 — Follow-ups"
+                    label  = f"{'[DRY RUN] ' if dry else ''}Phase 3 — Follow-up 1"
                     with st.status(f"Running {label}...", expanded=True) as status:
                         run_campaign(
                             segment="prospect",
@@ -602,6 +596,65 @@ with tab_outreach:
                             dry_run=dry,
                             test_only=test_only,
                             min_touch=2,
+                            max_touch=2,
+                            require_approval=False,
+                            on_progress=cb,
+                        )
+                        status.update(label=f"{label} complete!", state="complete")
+                    if dry:
+                        st.info("Dry run complete — no messages sent.")
+                    else:
+                        st.success(f"**{label}** sent for **{market_name}**.")
+
+                st.markdown(
+                    "<hr style='margin:0.6rem 0; border:none; border-top:1px solid #E2E8F0'>",
+                    unsafe_allow_html=True,
+                )
+
+                # ── Step 4: Follow-up 2 ────────────────────────────────────────
+                st.markdown("**Step 4 — Follow-up 2**")
+                st.caption(
+                    "Sends T3 directly from templates. "
+                    "Only contacts where Follow-up 1 was sent and no reply received."
+                )
+                s4c1, s4c2, _ = st.columns([1, 1.4, 4])
+                s4_dry  = s4c1.button("Dry Run",          key=f"{key}_fu2_dry")
+                s4_live = s4c2.button("Send Follow-up 2", key=f"{key}_fu2_live", type="primary")
+
+                if s4_live:
+                    st.session_state[f"{key}_fu2_confirm"] = True
+
+                if st.session_state.get(f"{key}_fu2_confirm"):
+                    if test_only:
+                        st.info(f"Sending **Phase 3 — Follow-up 2** to **test contacts only** in **{market_name}**. Messages cannot be unsent.")
+                    else:
+                        st.warning(f"Sending **Phase 3 — Follow-ups 2** to real contacts in **{market_name}**. Messages cannot be unsent.")
+                    cc1, cc2, _ = st.columns([1, 1, 4])
+                    s4_confirmed = cc1.button("Confirm — Send", key=f"{key}_fu2_confirmed", type="primary")
+                    s4_cancelled = cc2.button("Cancel",         key=f"{key}_fu2_cancel")
+                    if s4_cancelled:
+                        st.session_state[f"{key}_fu2_confirm"] = False
+                        st.rerun()
+                else:
+                    s4_confirmed = False
+
+                if s4_dry or s4_confirmed:
+                    dry = s4_dry
+                    if s4_confirmed:
+                        st.session_state[f"{key}_fu2_confirm"] = False
+                    log_ph = st.empty()
+                    cb     = make_log_runner(log_ph)
+                    label  = f"{'[DRY RUN] ' if dry else ''}Phase 3 — Follow-up 2"
+                    with st.status(f"Running {label}...", expanded=True) as status:
+                        run_campaign(
+                            segment="prospect",
+                            market=market_name,
+                            sheet_id=sheet_id,
+                            sheet_name=prospects,
+                            dry_run=dry,
+                            test_only=test_only,
+                            min_touch=3,
+                            max_touch=3,
                             require_approval=False,
                             on_progress=cb,
                         )

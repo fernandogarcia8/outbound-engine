@@ -236,6 +236,7 @@ def run_campaign(
     test_only: bool = False,
     require_approval: bool = True,
     min_touch: int = 1,
+    max_touch: int = None,
     on_progress=None,
 ) -> dict:
     """
@@ -293,24 +294,20 @@ def run_campaign(
     all_rows_normalized = [normalize_row(r, segment) for r in all_rows]
 
     if test_only:
-        # Bypass eligibility + touch-timing checks entirely.
-        # Always send Touch 1 to every row where Notes = "test" (or OWNER_ID = "test").
-        # This lets test contacts be reused across runs without resetting the sheet.
         def _is_test_row(r: dict) -> bool:
             notes    = str(r.get("Notes")    or "").strip().lower()
             owner_id = str(r.get("OWNER_ID") or "").strip().lower()
             return notes == "test" or owner_id == "test"
-        eligible = _deduplicate_by_owner([
-            (r, 1) for r in all_rows_normalized
-            if _is_test_row(r) and (has_email(r) or has_phone(r))
-        ])
+        test_rows    = [r for r in all_rows_normalized if _is_test_row(r)]
+        raw_eligible = filter_eligible_rows(test_rows, segment)
+        eligible     = _deduplicate_by_owner(raw_eligible)
         report(f"[TEST ONLY] Found {len(eligible)} test contact(s).")
     else:
         raw_eligible = filter_eligible_rows(all_rows_normalized, segment)
         eligible     = _deduplicate_by_owner(raw_eligible)
 
-    if min_touch > 1:
-        eligible = [(r, t) for r, t in eligible if t >= min_touch]
+    if min_touch > 1 or max_touch is not None:
+        eligible = [(r, t) for r, t in eligible if t >= min_touch and (max_touch is None or t <= max_touch)]
 
     summary.total_eligible = len(eligible)
     report(f"{len(eligible)} rows eligible for segment '{segment}'.")
@@ -339,11 +336,15 @@ def run_campaign(
                 market_overrides=_market_templates,
             )
 
+            dry_email_subject = messages["email_subject"]
+            if not dry_email_subject and segment == "prospect":
+                dry_email_subject = (row.get(COL_DRAFT_SUBJECT) or "").strip()
+
             report(f"\n[{i}/{len(eligible)}] {full_name}  (Touch {touch} — {_TOUCH_LABELS[touch]})")
             report(f"  → Assign to: {assignee['name']}")
             if has_email(row) and not sms_only:
                 report(f"  → EMAIL to {owner_email}")
-                report(f"     Subject : {messages['email_subject']}")
+                report(f"     Subject : {dry_email_subject}")
                 report(f"     Body    : {messages['email_body'][:120]}...")
             if has_phone(row):
                 report(f"  → SMS to {owner_phone}")
@@ -436,12 +437,16 @@ def run_campaign(
             continue
 
         # 4. Send email — independent try so SMS still runs if email fails
+        email_subject = messages["email_subject"]
+        if not email_subject and segment == "prospect":
+            email_subject = (row.get(COL_DRAFT_SUBJECT) or "").strip()
+
         if has_email(row) and not sms_only:
             try:
                 kustomer.send_email(
                     customer_id=kustomer_id,
                     conversation_id=conversation_id,
-                    subject=messages["email_subject"],
+                    subject=email_subject,
                     body=messages["email_body"],
                     to_email=owner_email,
                     to_name=full_name,
@@ -567,10 +572,9 @@ def send_from_drafts(
     if test_only:
         def _is_test_row(r: dict) -> bool:
             return str(r.get("Notes") or "").strip().lower() == "test"
-        eligible = _deduplicate_by_owner([
-            (r, 1) for r in all_rows_norm
-            if _is_test_row(r) and (has_email(r) or has_phone(r))
-        ])
+        test_rows    = [r for r in all_rows_norm if _is_test_row(r)]
+        raw_eligible = filter_eligible_rows(test_rows, "prospect")
+        eligible     = _deduplicate_by_owner(raw_eligible)
         report(f"[TEST ONLY] Found {len(eligible)} test contact(s).")
     else:
         raw_eligible = filter_eligible_rows(all_rows_norm, "prospect")
@@ -665,6 +669,7 @@ def send_from_drafts(
                     assigned_user_id=assignee["kustomer_id"],
                     segment="prospect",
                     market=market,
+                    name=draft_subject or None,
                 )
                 conversation_id = conversation["id"]
                 report(f"  -> Conversation created, assigned to {assignee['name']}")
@@ -713,7 +718,6 @@ def send_from_drafts(
             )
             sheet_updates = {COL_KUSTOMER_LINK: kustomer_link}
             if touch == 1:
-                sheet_updates[COL_KUSTOMER_ID]    = conversation_id
                 sheet_updates[COL_CONTACT_STATUS] = "Contacted"
             if email_sent:
                 sheet_updates[email_col_ts] = timestamp
