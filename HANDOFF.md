@@ -11,8 +11,10 @@
 └── outbound_engine/
     ├── engine.py           ← Core orchestrator + send_from_drafts()
     ├── cross_list.py
-    ├── split_not_live.py
+    ├── import_split.py     ← Reads Sheet1, routes rows to all destination tabs
+    ├── split_not_live.py   ← Legacy split (superseded by import_split.py)
     ├── classify_not_live.py
+    ├── prep_churn.py       ← BS - Churn prep: tracking columns, tier classification
     ├── prep_prospects.py   ← Prospects tab prep: columns, dropdowns + funnel detection
     ├── draft_prospects.py  ← Generates Draft Subject/Email/SMS columns before Phase 3 send
     ├── seed_test_rows.py   ← Seeds team members as test rows (per-person selection)
@@ -94,10 +96,11 @@ python controller.py scrape   --market savannah   # prints prospecting skill ins
 ## Prep (two separate sections in the Prep tab)
 
 ### Funnel Prep (run once per new Snowflake export, before Phases 1 + 2)
-Runs three steps in sequence:
-1. `split_not_live` — splits BS - Not Live into actionable vs BS - Churn by BOAT_LISTING_STATE
-2. `classify_not_live` — assigns Tier + Action + Contact Status + outreach columns to actionable rows
+Paste the full Snowflake export into **Sheet1**, then click Run Prep. Runs four steps in sequence:
+1. `import_and_split` — reads Sheet1 and routes every row to the correct tab by `platform` + `IS_CURRENTLY_LIVE_ON_SITE` + `BOAT_LISTING_STATE`; clears and rewrites all five destination tabs
+2. `classify_not_live` — assigns Tier + Action + Contact Status + outreach columns to BS - Not Live rows
 3. `detect_cross_list` — 6-layer detection, tags BS - Live and GMB - Live, adds outreach columns + colored dropdowns to both tabs
+4. `prep_churn` — adds tracking columns + dropdowns to BS - Churn and classifies deactivated rows by tier
 
 ### Prospects Prep (run before Phase 3, safe to run after Phases 1 + 2)
 `prep_prospects.py` — only touches the Prospects tab. Two steps in one click:
@@ -160,7 +163,8 @@ Markets are discovered automatically from Google Drive at app startup (cached 5 
 
 **To add a new market:**
 1. Create a Google Sheet named `<Location> - Outbound` (e.g. "Tampa Bay - Outbound")
-2. Add tabs: `BS - Live` | `GMB - Live` | `BS - Not Live` | `BS - Churn` | `Prospects`
+2. Add tabs: `BS - Live` | `GMB - Live` | `BS - Not Live` | `BS - Churn` | `GMB - Not Live` | `Prospects`
+   - `Sheet1` is used as the raw import staging tab — Funnel Prep reads from it and routes to all others
 3. Share the sheet with `outbound-engine@n8n-sheets-456321.iam.gserviceaccount.com` (Editor)
 4. Place it (or a shortcut) in the "Outbound Engine" Drive folder:
    `https://drive.google.com/drive/u/0/folders/1jje4PAk8chx9pSbkjldhWsAqFQiCA4cf`
@@ -341,6 +345,36 @@ All three helpers are also exposed as `{activities}`, `{boat_type}` placeholders
 
 ---
 
+## Import & Split routing (import_split.py)
+
+Reads `Sheet1` and routes rows to five destination tabs. Clears each tab before writing.
+
+| Destination tab | platform | IS_CURRENTLY_LIVE_ON_SITE | BOAT_LISTING_STATE |
+|---|---|---|---|
+| BS - Live | `marketplace` | 1 | any |
+| GMB - Live | `gmb` | 1 | any |
+| BS - Not Live | `marketplace` | 0 | approved · corrections_needed · pending_review · survey_received |
+| BS - Churn | `marketplace` | 0 | blocked · boatbound_denied · deactivated · deleted · incomplete · insurance_denied · pending_insurance · pending_survey |
+| GMB - Not Live | `gmb` | 0 | any |
+
+Column lookups are case-insensitive. `IS_CURRENTLY_LIVE_ON_SITE` accepts `1`, `"1"`, `True`, or `"true"`. Rows with unrecognized platform or state values are logged but not routed.
+
+---
+
+## BS - Churn tier logic (prep_churn.py)
+
+Runs as step 4 of Funnel Prep. Only `deactivated` rows get a tier — all other churn states are left unclassified (junk).
+
+| Tier | Condition | Action set |
+|---|---|---|
+| Tier 1 | `deactivated` + LAST_LIVE_AT not empty + year > 2024 | Review |
+| Tier 2 | `deactivated` + LAST_LIVE_AT empty or year ≤ 2024 | Review |
+| — | All other churn states | (left blank) |
+
+Idempotent — skips rows that already have a Tier or are set to Skip. Focus on Tier 1 rows first when building Phase 4 churn outreach.
+
+---
+
 ## BS - Not Live tier logic (classify_not_live.py)
 
 | Tier | BOAT_LISTING_STATE | Condition | Action |
@@ -409,6 +443,9 @@ Sends T3 directly from templates. Same threading and rep behaviour as Follow-up 
 - Deduplication by owner, boat noun (boat/boats/fleet) ✅
 - Round-robin (Tyler + Fernando), persisted in `round_robin_state.json` ✅
 - Independent email/SMS error handling ✅
+- **Unified import flow** ✅ — single Snowflake query → paste into Sheet1 → Funnel Prep routes everything automatically; replaces 3-query manual workflow
+- **GMB - Not Live tab** ✅ — GMB owners who are not live routed here by import_split; no outreach yet
+- **BS - Churn prep** ✅ — tracking columns + dropdowns + tier classification; Tier 1 = deactivated + last live > 2024, Tier 2 = deactivated + other, everything else unclassified
 - **Prospects Prep** ✅ — dedicated prep for Prospects tab only (safe post-Phase 1+2): column setup + funnel detection, `Funnel Status` column, Manual Check for matched rows
 - **Prospect draft flow** ✅ — 4-step: Generate Drafts → Send Initial → Follow-up 1 → Follow-up 2; T1 via draft review, T2/T3 via templates; each step targets exactly one touch
 - **Funnel phases (1+2) step flow** ✅ — separate Initial / Follow-up 1 / Follow-up 2 buttons; each targets exactly one touch (min_touch=max_touch)
@@ -424,4 +461,5 @@ Sends T3 directly from templates. Same threading and rep behaviour as Follow-up 
 
 - **Prospect scraping automation** — currently manual via `/boat-charter-prospector` skill in Claude Code
 - **Prospects Prep re-run idempotency** — re-running overwrites `Funnel Status`/`Notes`/`Action` for matched rows even if manually reviewed; future fix: skip rows that already have a `Funnel Status`
-- **BS - Churn outreach** — no process yet; opportunity in `pending_insurance`, `deactivated`, `deleted`
+- **BS - Churn outreach** — prep is done (Tier 1/2 deactivated rows are classified and ready); Phase 4 outreach copy + engine segment not yet built
+- **GMB - Not Live outreach** — tab exists and is populated; no outreach process or copy yet

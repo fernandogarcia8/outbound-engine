@@ -45,8 +45,10 @@ A Python + Streamlit outreach engine for Boatsetter's supply team. Reads boat ow
     ├── kustomer_client.py        ← Kustomer API wrapper (lookup, create, send)
     ├── sheets_connector.py       ← Google Sheets read/write wrapper
     ├── cross_list.py             ← 6-layer cross-list detection (runs during Funnel Prep)
-    ├── split_not_live.py         ← Splits BS-Not-Live into actionable vs churn
-    ├── classify_not_live.py      ← Assigns Tier + Action + Contact Status
+    ├── import_split.py           ← Reads Sheet1, routes rows to all destination tabs
+    ├── split_not_live.py         ← Legacy split (superseded by import_split.py)
+    ├── classify_not_live.py      ← Assigns Tier + Action + Contact Status to BS - Not Live
+    ├── prep_churn.py             ← BS - Churn prep: tracking columns + tier classification
     ├── prep_prospects.py         ← Prospects tab prep: columns, dropdowns + funnel detection
     ├── draft_prospects.py        ← Generates Draft Subject/Email/SMS columns before Phase 3 send
     ├── seed_test_rows.py         ← Seeds team members as test rows (per-person selection)
@@ -125,7 +127,8 @@ Markets are discovered automatically from a Google Drive folder at app startup (
 ### Adding a new market
 
 1. Create a Google Sheet named `<Location> - Outbound` (e.g. "Tampa Bay - Outbound")
-2. Add tabs: `BS - Live` | `GMB - Live` | `BS - Not Live` | `BS - Churn` | `Prospects`
+2. Add tabs: `BS - Live` | `GMB - Live` | `BS - Not Live` | `BS - Churn` | `GMB - Not Live` | `Prospects`
+   - `Sheet1` is the raw import staging tab — Funnel Prep reads from it and writes to all others
 3. Share with `outbound-engine@n8n-sheets-456321.iam.gserviceaccount.com` (Editor)
 4. Place the sheet (or a shortcut) in the Drive folder above
 5. It appears in the app dropdown within 5 minutes
@@ -175,17 +178,23 @@ The Prep tab has two independent sections:
 
 ### Funnel Prep — run once per new Snowflake export, before Phases 1 + 2
 
-Three steps in sequence:
+Paste the full Snowflake export (all platforms, all listing states) into `Sheet1`, then click **Run Prep**. Four steps run in sequence:
 
-#### Step 1 — Split (`split_not_live.py`)
+#### Step 1 — Import & Split (`import_split.py`)
 
-Scans `BS - Not Live` and moves rows with churn-state `BOAT_LISTING_STATE` values to `BS - Churn`.
+Reads `Sheet1` and routes every row to the correct destination tab based on `platform` and `IS_CURRENTLY_LIVE_ON_SITE`. Clears each destination tab before writing.
 
-Churn states: `blocked`, `boatbound_denied`, `deactivated`, `deleted`, `incomplete`, `insurance_denied`, `pending_insurance`, `pending_survey`
+| Destination | platform | IS_CURRENTLY_LIVE_ON_SITE | BOAT_LISTING_STATE |
+|---|---|---|---|
+| BS - Live | `marketplace` | 1 | any |
+| GMB - Live | `gmb` | 1 | any |
+| BS - Not Live | `marketplace` | 0 | approved · corrections_needed · pending_review · survey_received |
+| BS - Churn | `marketplace` | 0 | blocked · boatbound_denied · deactivated · deleted · incomplete · insurance_denied · pending_insurance · pending_survey |
+| GMB - Not Live | `gmb` | 0 | any |
 
 #### Step 2 — Classify (`classify_not_live.py`)
 
-Assigns `Tier`, `Action to take`, and `Contact Status` to remaining rows in `BS - Not Live`.
+Assigns `Tier`, `Action to take`, and `Contact Status` to rows in `BS - Not Live`.
 
 | Tier | BOAT_LISTING_STATE | Condition | Action |
 |---|---|---|---|
@@ -200,6 +209,18 @@ Assigns `Tier`, `Action to take`, and `Contact Status` to remaining rows in `BS 
 Runs 6-layer detection across `BS - Live` and `GMB - Live`. Adds outreach tracking columns and color-coded dropdowns to both tabs.
 
 See [Cross-List Detection](#cross-list-detection) for full detail.
+
+#### Step 4 — Churn Classification (`prep_churn.py`)
+
+Adds tracking columns and dropdowns to `BS - Churn`, then classifies `deactivated` rows by tier. All other churn states are left unclassified.
+
+| Tier | Condition |
+|---|---|
+| Tier 1 | `deactivated` + LAST_LIVE_AT not empty + year > 2024 |
+| Tier 2 | `deactivated` + LAST_LIVE_AT empty or year ≤ 2024 |
+| — (unclassified) | Any other churn state |
+
+Tier 1 rows are the most actionable — recently deactivated owners with known activity. Focus here when building Phase 4 churn outreach.
 
 ---
 
@@ -525,7 +546,10 @@ TEAM_MEMBERS = [
 - Streamlit web app — live at https://supply-outbound-engine.streamlit.app ✅
 - CLI controller (`prep`, `outreach`, `scrape` commands) ✅
 - Cross-list detection (6 layers including name matching) ✅
-- Prep pipeline (split → classify → detect) with colored dropdowns ✅
+- **Unified import flow** ✅ — single Snowflake query → paste into Sheet1 → Funnel Prep routes to all tabs automatically
+- **Funnel Prep pipeline** ✅ — Import & Split → Classify → Cross-list → Churn (4 steps, one button)
+- **GMB - Not Live tab** ✅ — GMB owners who are not live routed here; no outreach yet
+- **BS - Churn prep** ✅ — tracking columns, dropdowns, and tier classification (Tier 1: deactivated + last live > 2024; Tier 2: deactivated + other; rest unclassified)
 - Engine: all segments, 3-touch sequence (no minimum gap between touches) ✅
 - **Fleet owner deduplication** — one message per owner, all matching rows updated in one batch call ✅
 - **Rate limiting** — BackOffHTTPClient auto-retries on 429s; no mid-run crashes ✅
@@ -549,4 +573,5 @@ TEAM_MEMBERS = [
 
 - **Prospect scraping automation** — currently manual via `/boat-charter-prospector` skill in Claude Code
 - **Prospects Prep re-run idempotency** — re-running overwrites matched rows even if manually reviewed; future fix: skip rows that already have a `Funnel Status`
-- **BS - Churn outreach** — no process yet; opportunity in `pending_insurance`, `deactivated`, `deleted`
+- **BS - Churn outreach (Phase 4)** — prep is done; Tier 1 deactivated rows are classified and ready; outreach copy + engine segment not yet built
+- **GMB - Not Live outreach** — tab is populated by Funnel Prep; no outreach process or copy yet
