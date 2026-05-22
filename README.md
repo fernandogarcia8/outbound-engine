@@ -461,18 +461,20 @@ The **📊 Metrics** tab (5th tab in the web app) aggregates outreach performanc
 
 ### What it shows
 
-- **Overall cards** — Emails Sent, SMS Sent, Owners Contacted, Reply Rate
-- **Touch breakdown table** — T1 / T2 / T3 × email / SMS counts
-- **Contact Status distribution** — across all markets combined
-- **Per-market table** — Emails, SMS, Contacted, Interested, Wins, Replied, Reply Rate per market
+Three sections:
+
+- **Overall** — combined summary cards: Owners Contacted, Reply Rate, Emails Sent, SMS Sent, Total Messages
+- **Funnel Outreach** — BS - Live, GMB - Live, BS - Not Live tabs; existing owners with a prior BS/GMB relationship
+- **Prospect Outreach** — Prospects tab only; cold outreach to net new contacts
+
+Each section shows summary cards and a per-market table (Owners Contacted, Emails, SMS, Total Messages, Replied, Reply Rate). A market only appears in a section if it has sends in that category — markets with both funnel and prospect data appear in both sections.
 
 ### How it works
 
-- Reads `Email 1` / `SMS 1` / `Email 2` / `SMS 2` / `Email 3` / `SMS 3` columns across all tabs
+- **Tab classification** — tabs whose name contains `"prospect"` (case-insensitive) count as prospect outreach; everything else with touch columns counts as funnel
+- Reads `Email 1` / `SMS 1` / `Email 2` / `SMS 2` / `Email 3` / `SMS 3` columns; also handles `SMS1` (no space) for legacy n8n-era sheets
 - Deduplicates by owner email/phone — fleet owners count once regardless of boat count
 - Filters out test rows (`Notes = "test"`)
-- Normalizes minor Contact Status casing inconsistencies
-- Numbers are totals across **all markets combined** — not per-market in the top cards
 
 **Reply Rate** requires manually toggling `Replied?` to `TRUE` in the sheet when an owner responds in Kustomer. Everything else updates automatically.
 
@@ -529,7 +531,7 @@ TEAM_MEMBERS = [
 - **Rate limiting** — BackOffHTTPClient auto-retries on 429s; no mid-run crashes ✅
 - **Skip option** on all tabs — set Action to "Skip" to exclude any row from all outreach ✅
 - **Per-market message template overrides** — Messaging tab, stored in `_templates` Sheet tab ✅
-- **Metrics dashboard** — 5th tab, aggregates T1/T2/T3 × email/SMS across all markets, 30-min cache ✅
+- **Metrics dashboard** — 5th tab, three sections: Overall (combined) + Funnel Outreach + Prospect Outreach; per-market tables in each; 30-min cache; legacy `SMS1` column support for Keys n8n data ✅
 - Test mode with per-person seed selection (idempotent, reports existing row number) ✅
 - Round-robin rep assignment, persisted in `round_robin_state.json` ✅
 - Confirmation gate before live sends ✅

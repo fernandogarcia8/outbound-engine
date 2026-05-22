@@ -275,18 +275,22 @@ Supported placeholders: `{greeting}` · `{market}` · `{rep}` · `{boat_noun}` �
 
 The 5th tab aggregates outreach performance across all markets. Data is read directly from the sheets, cached 30 min, with a manual Refresh button.
 
-**What it shows:**
-- Overall: Emails Sent, SMS Sent, Owners Contacted, Reply Rate
-- Touch breakdown table (T1 / T2 / T3 × email / SMS)
-- Contact Status distribution
-- Per-market table (Emails, SMS, Contacted, Interested, Wins, Replied, Reply Rate)
+**Three sections:**
+
+- **Overall** — combined cards: Owners Contacted, Reply Rate, Emails Sent, SMS Sent, Total Messages
+- **Funnel Outreach** — BS - Live, GMB - Live, BS - Not Live tabs; existing owners with a prior BS/GMB relationship
+- **Prospect Outreach** — Prospects tab only; cold outreach to net new contacts
+
+Each section (Funnel + Prospect) shows its own summary cards and a per-market table (Owners Contacted, Emails, SMS, Total Messages, Replied, Reply Rate). A market only appears in a section if it has sends in that category — markets with both funnel and prospect data (e.g. Keys) appear in both.
+
+**Tab classification in `metrics.py`:** tabs whose name contains `"prospect"` (case-insensitive) count as prospect; everything else with touch columns counts as funnel.
+
+**Legacy column support:** the Keys market's n8n-era Prospects tab uses `SMS1` (no space) instead of `SMS 1`. `metrics.py` handles both automatically.
 
 **How it works:**
 - Deduplicates by owner email/phone — fleet owners count once regardless of boat count
 - Filters out test rows (`Notes = "test"`)
-- Normalizes minor status casing differences
-- Counts T1 from `Email 1` / `SMS 1`, T2 from `Email 2` / `SMS 2`, T3 from `Email 3` / `SMS 3`
-- Numbers shown are totals across ALL markets combined
+- Reads `Email 1` / `SMS 1` (+ `SMS1`) / `Email 2` / `SMS 2` / `Email 3` / `SMS 3` columns
 
 **Reply Rate** requires manually toggling `Replied?` to `TRUE` in the sheet when an owner responds in Kustomer. Everything else is automatic.
 
@@ -397,7 +401,7 @@ Sends T3 directly from templates. Same threading and rep behaviour as Follow-up 
 - **Rate limiting handled** ✅ — BackOffHTTPClient auto-retries on 429s; no more mid-run crashes
 - **Skip option on all tabs** ✅ — set Action to "Skip" to exclude any owner from outreach
 - **Per-market message template overrides** ✅ — Messaging tab, stored in `_templates` Sheet tab
-- **Metrics tab** ✅ — 5th tab, aggregates sends/replies/status across all markets, 30-min cache
+- **Metrics tab** ✅ — 5th tab, three sections: Overall (combined) + Funnel Outreach + Prospect Outreach; per-market tables in each; 30-min cache; legacy `SMS1` column support for Keys n8n data
 - **Multi-touch sequence** ✅ — no minimum time gap; T2/T3 eligible as soon as prior touch is sent
 - Test mode (Notes="test", uses real eligibility logic on test rows — T2/T3 test runs work correctly) ✅
 - Seed test rows with per-person selection ✅ — shows row number when contact already exists
