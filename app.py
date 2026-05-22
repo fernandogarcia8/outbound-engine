@@ -48,9 +48,11 @@ else:
         if _val and not os.path.isabs(_val):
             os.environ[_var] = os.path.join(_ENGINE_DIR, _val)
 from markets import get_markets
+from import_split import import_and_split
 from split_not_live import split_not_live
 from classify_not_live import classify_not_live
 from cross_list import detect_cross_list
+from prep_churn import prep_churn
 from prep_prospects import prep_prospects
 from engine import run_campaign, send_from_drafts
 from draft_prospects import generate_drafts
@@ -200,11 +202,12 @@ with st.sidebar:
     sheet_id    = cfg["sheet_id"]
     sheets      = cfg.get("sheets", {})
 
-    bs_live     = sheets.get("bs_live",     "BS - Live")
-    gmb_live    = sheets.get("gmb_live",    "GMB - Live")
-    bs_not_live = sheets.get("bs_not_live", "BS - Not Live")
-    bs_churn    = sheets.get("bs_churn",    "BS - Churn")
-    prospects   = sheets.get("prospects",   "Prospects")
+    bs_live      = sheets.get("bs_live",      "BS - Live")
+    gmb_live     = sheets.get("gmb_live",     "GMB - Live")
+    bs_not_live  = sheets.get("bs_not_live",  "BS - Not Live")
+    bs_churn     = sheets.get("bs_churn",     "BS - Churn")
+    gmb_not_live = sheets.get("gmb_not_live", "GMB - Not Live")
+    prospects    = sheets.get("prospects",    "Prospects")
 
     st.divider()
     test_only = st.toggle("Test contacts only", value=False)
@@ -291,6 +294,8 @@ with tab_setup:
 # ══ TAB 2: Prep ════════════════════════════════════════════════════════════════
 
 with tab_prep:
+
+    # ── Funnel Prep ─────────────────────────────────────────────────────────────
     st.markdown("### Funnel Prep")
     st.markdown(
         "Runs all detection and classification steps against the current sheet data. "
@@ -300,14 +305,15 @@ with tab_prep:
 
     st.markdown('<p class="section-label">Steps</p>', unsafe_allow_html=True)
     st.markdown("""
-- **1 of 3 — Split** BS - Not Live into actionable vs churn rows
-- **2 of 3 — Classify** actionable rows by tier and assign action
-- **3 of 3 — Detect** cross-list overlaps across BS - Live and GMB - Live
+- **1 of 4 — Import & Split** Sheet1 into BS - Live, GMB - Live, BS - Not Live, BS - Churn, GMB - Not Live
+- **2 of 4 — Classify** BS - Not Live rows by tier and assign action
+- **3 of 4 — Detect** cross-list overlaps across BS - Live and GMB - Live
+- **4 of 4 — Churn** classify deactivated rows by tier in BS - Churn
     """)
 
     st.markdown("")
     col1, col2, _ = st.columns([1, 1, 3])
-    prep_dry  = col1.button("Dry Run", key="prep_dry",  disabled=not _logged_in)
+    prep_dry  = col1.button("Dry Run",  key="prep_dry",  disabled=not _logged_in)
     prep_live = col2.button("Run Prep", key="prep_live", type="primary", disabled=not _logged_in)
 
     if prep_dry or prep_live:
@@ -316,27 +322,53 @@ with tab_prep:
         cb     = make_log_runner(log_ph)
 
         with st.status(f"{'[DRY RUN] ' if dry else ''}Running prep for {market_name}...", expanded=True) as status:
-            st.write("**1 / 3** — Splitting BS - Not Live...")
-            r1 = split_not_live(
-                sheet_id=sheet_id, source_sheet=bs_not_live,
-                churn_sheet=bs_churn, dry_run=dry, on_progress=cb,
-            )
-            st.write(f"Split: {r1.get('kept',0)} kept · {r1.get('moved',0)} churn · {r1.get('unknown',0)} unknown")
+            st.write("**1 / 4** — Importing and splitting from Sheet1...")
+            try:
+                ri = import_and_split(
+                    sheet_id=sheet_id,
+                    raw_sheet="Sheet1",
+                    bs_live_sheet=bs_live,
+                    gmb_live_sheet=gmb_live,
+                    bs_not_live_sheet=bs_not_live,
+                    bs_churn_sheet=bs_churn,
+                    gmb_not_live_sheet=gmb_not_live,
+                    dry_run=dry,
+                    on_progress=cb,
+                )
+                st.write(" · ".join(f"{tab}: {n}" for tab, n in ri.items()))
+            except Exception as e:
+                status.update(label="Import failed", state="error")
+                st.error(str(e))
+                st.stop()
 
-            st.write("**2 / 3** — Classifying...")
+            st.write("**2 / 4** — Classifying BS - Not Live...")
             r2 = classify_not_live(
                 sheet_id=sheet_id, sheet_name=bs_not_live,
                 dry_run=dry, on_progress=cb,
             )
             st.write(f"Classified: {r2.get('classified',0)} · Already set: {r2.get('skipped_already_set',0)}")
 
-            st.write("**3 / 3** — Cross-list detection...")
+            st.write("**3 / 4** — Cross-list detection...")
             detect_cross_list(
                 spreadsheet_id=sheet_id,
                 bs_sheet_name=bs_live, gmb_sheet_name=gmb_live,
                 churn_sheet_name=bs_churn, not_live_sheet_name=bs_not_live,
                 dry_run=dry, on_progress=cb,
             )
+
+            st.write("**4 / 4** — Churn classification...")
+            rc = prep_churn(
+                sheet_id=sheet_id,
+                sheet_name=bs_churn,
+                dry_run=dry,
+                on_progress=cb,
+            )
+            st.write(
+                f"Churn: {rc.get('tier1',0)} Tier 1 · "
+                f"{rc.get('tier2',0)} Tier 2 · "
+                f"{rc.get('unclassified',0)} unclassified"
+            )
+
             status.update(label="Prep complete!", state="complete")
 
         if dry:
@@ -346,6 +378,7 @@ with tab_prep:
 
     st.divider()
 
+    # ── Prospects Prep ───────────────────────────────────────────────────────────
     st.markdown("### Prospects Prep")
     st.markdown(
         "Prepares only the **Prospects** tab. "
