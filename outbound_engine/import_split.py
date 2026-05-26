@@ -31,6 +31,8 @@ SCOPES = [
     "https://www.googleapis.com/auth/drive.readonly",
 ]
 
+from config import GMB_LISTING_BASE_URL, COL_GMB_BOAT_ID, COL_BOAT_ADMIN_URL
+
 COL_PLATFORM = "PLATFORM"
 COL_LIVE     = "IS_CURRENTLY_LIVE_ON_SITE"
 COL_STATE    = "BOAT_LISTING_STATE"
@@ -182,15 +184,30 @@ def import_and_split(
         return {tab: len(rows) for tab, rows in buckets.items()}
 
     # ── Write to destination tabs ──────────────────────────────────────────────
+    gmb_tabs      = {gmb_live_sheet, gmb_not_live_sheet}
+    boat_id_idx   = _find_col(headers, COL_GMB_BOAT_ID)
+    inject_url    = boat_id_idx >= 0 and COL_BOAT_ADMIN_URL not in headers
+
     for tab_name, rows in buckets.items():
         report(f"\nClearing and rewriting '{tab_name}'...")
-        ws = _get_or_create_ws(ss, tab_name, max(len(rows) + 100, 300), len(headers))
-        ws.clear()
-        if rows:
-            ws.update([headers] + rows, value_input_option="RAW")
+
+        if tab_name in gmb_tabs and inject_url:
+            tab_headers = list(headers) + [COL_BOAT_ADMIN_URL]
+            tab_rows = []
+            for row in rows:
+                boat_id = str(row[boat_id_idx]).strip() if boat_id_idx < len(row) else ""
+                tab_rows.append(list(row) + [f"{GMB_LISTING_BASE_URL}{boat_id}" if boat_id else ""])
         else:
-            ws.update([headers], value_input_option="RAW")
-        report(f"  → {len(rows)} rows written")
+            tab_headers = headers
+            tab_rows    = rows
+
+        ws = _get_or_create_ws(ss, tab_name, max(len(tab_rows) + 100, 300), len(tab_headers))
+        ws.clear()
+        if tab_rows:
+            ws.update([tab_headers] + tab_rows, value_input_option="RAW")
+        else:
+            ws.update([tab_headers], value_input_option="RAW")
+        report(f"  → {len(tab_rows)} rows written")
 
     if unrouted:
         report(f"\n⚠ {len(unrouted)} rows were not routed — check platform/state values.")
