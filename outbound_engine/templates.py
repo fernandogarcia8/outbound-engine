@@ -11,12 +11,17 @@ Reactivate variants:
   - "old"    (>= 90 days, or no date)    : boat hasn't been live in a while
 """
 
+from datetime import date
+
 from config import COL_FIRST_NAME
 
 
 def _greeting(row: dict) -> str:
     first_name = (row.get(COL_FIRST_NAME) or "").strip().title()
-    return f"Hi {first_name}," if first_name else "Hi there,"
+    salutation = f"Hi {first_name}," if first_name else "Hi there,"
+    if date.today().weekday() == 0:
+        return f"{salutation}\n\nHope you had a great weekend!"
+    return salutation
 
 
 def _location(row: dict, market: str) -> str:
