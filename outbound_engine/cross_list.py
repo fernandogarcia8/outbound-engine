@@ -130,6 +130,7 @@ def detect_cross_list(
     gmb_sheet_name: str,
     churn_sheet_name: str = "BS - Churn",
     not_live_sheet_name: str = "BS - Not Live",
+    gmb_not_live_sheet_name: str = "GMB - Not Live",
     dry_run: bool = False,
     on_progress=None,
 ) -> dict:
@@ -173,6 +174,11 @@ def detect_cross_list(
         gmb_connector.format_columns_as_date(_ts_cols)
         bs_connector.apply_column_dropdowns(_SHARED_DROPDOWN_CONFIG)
         gmb_connector.apply_column_dropdowns(_GMB_LIVE_DROPDOWN_CONFIG)
+
+        report("\nEnsuring outreach columns on GMB - Not Live...")
+        gmb_not_live_connector = SheetsConnector(spreadsheet_id, gmb_not_live_sheet_name)
+        gmb_not_live_connector.ensure_columns(_LIVE_TRACKING_COLUMNS)
+        gmb_not_live_connector.format_columns_as_date(_ts_cols)
 
     # ── Read BS - Churn and BS - Not Live for Layer 4+5 ───────────────────────
     def _read_funnel_sheet(name: str) -> list[dict]:

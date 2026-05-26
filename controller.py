@@ -109,10 +109,11 @@ def cmd_prep(cfg: dict, dry_run: bool) -> None:
     market_name = cfg["display_name"]
     sheet_id    = cfg["sheet_id"]
     sheets      = cfg.get("sheets", {})
-    bs_not_live = sheets.get("bs_not_live", "BS - Not Live")
-    bs_churn    = sheets.get("bs_churn",    "BS - Churn")
-    bs_live     = sheets.get("bs_live",     "BS - Live")
-    gmb_live    = sheets.get("gmb_live",    "GMB - Live")
+    bs_not_live  = sheets.get("bs_not_live",  "BS - Not Live")
+    bs_churn     = sheets.get("bs_churn",     "BS - Churn")
+    bs_live      = sheets.get("bs_live",      "BS - Live")
+    gmb_live     = sheets.get("gmb_live",     "GMB - Live")
+    gmb_not_live = sheets.get("gmb_not_live", "GMB - Not Live")
 
     mode = " [DRY RUN]" if dry_run else ""
     _header(f"Prep{mode} — {market_name}")
@@ -156,6 +157,7 @@ def cmd_prep(cfg: dict, dry_run: bool) -> None:
         gmb_sheet_name=gmb_live,
         churn_sheet_name=bs_churn,
         not_live_sheet_name=bs_not_live,
+        gmb_not_live_sheet_name=gmb_not_live,
         dry_run=dry_run,
     )
 

@@ -353,6 +353,7 @@ with tab_prep:
                 spreadsheet_id=sheet_id,
                 bs_sheet_name=bs_live, gmb_sheet_name=gmb_live,
                 churn_sheet_name=bs_churn, not_live_sheet_name=bs_not_live,
+                gmb_not_live_sheet_name=gmb_not_live,
                 dry_run=dry, on_progress=cb,
             )
 
