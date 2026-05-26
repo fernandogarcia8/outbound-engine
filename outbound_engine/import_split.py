@@ -186,17 +186,30 @@ def import_and_split(
     # ── Write to destination tabs ──────────────────────────────────────────────
     gmb_tabs      = {gmb_live_sheet, gmb_not_live_sheet}
     boat_id_idx   = _find_col(headers, COL_GMB_BOAT_ID)
-    inject_url    = boat_id_idx >= 0 and COL_BOAT_ADMIN_URL not in headers
+    admin_url_idx = _find_col(headers, COL_BOAT_ADMIN_URL)
 
     for tab_name, rows in buckets.items():
         report(f"\nClearing and rewriting '{tab_name}'...")
 
-        if tab_name in gmb_tabs and inject_url:
-            tab_headers = list(headers) + [COL_BOAT_ADMIN_URL]
-            tab_rows = []
-            for row in rows:
-                boat_id = str(row[boat_id_idx]).strip() if boat_id_idx < len(row) else ""
-                tab_rows.append(list(row) + [f"{GMB_LISTING_BASE_URL}{boat_id}" if boat_id else ""])
+        if tab_name in gmb_tabs and boat_id_idx >= 0:
+            if admin_url_idx >= 0:
+                # Column exists in Sheet1 but is empty — fill it in-place
+                tab_headers = headers
+                tab_rows = []
+                for row in rows:
+                    row = list(row)
+                    while len(row) <= admin_url_idx:
+                        row.append("")
+                    boat_id = str(row[boat_id_idx]).strip() if boat_id_idx < len(row) else ""
+                    row[admin_url_idx] = f"{GMB_LISTING_BASE_URL}{boat_id}" if boat_id else ""
+                    tab_rows.append(row)
+            else:
+                # Column absent from Sheet1 — append it
+                tab_headers = list(headers) + [COL_BOAT_ADMIN_URL]
+                tab_rows = []
+                for row in rows:
+                    boat_id = str(row[boat_id_idx]).strip() if boat_id_idx < len(row) else ""
+                    tab_rows.append(list(row) + [f"{GMB_LISTING_BASE_URL}{boat_id}" if boat_id else ""])
         else:
             tab_headers = headers
             tab_rows    = rows
